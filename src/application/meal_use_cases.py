@@ -4,11 +4,14 @@ Use Cases - Meal analysis and history.
 Orchestrates: image -> vision (identifies foods) -> tool calling (nutrition API) -> store.
 """
 
+import logging
 from typing import Dict, Any
 from src.domain.meal import Meal
 from src.domain.meal_repository_interface import IMealRepository
 from src.domain.profile_repository_interface import IProfileRepository
 from src.domain.llm_adapter_interface import ILlmAdapter
+
+logger = logging.getLogger(__name__)
 
 
 class AnalyzeMealUseCase:
@@ -51,7 +54,12 @@ class AnalyzeMealUseCase:
 
             # Determine enrichment source from food items
             sources = {i.get("enriched_source", "vision_estimate") for i in food_items}
-            enriched_with = "usda_fdc" if "usda_fdc" in sources else "vision_estimate"
+            if "nutrition_label_ocr" in sources:
+                enriched_with = "nutrition_label_ocr"
+            elif "usda_fdc" in sources:
+                enriched_with = "usda_fdc"
+            else:
+                enriched_with = "vision_estimate"
 
             # Create and persist meal
             meal = Meal(

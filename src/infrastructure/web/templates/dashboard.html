@@ -1522,8 +1522,10 @@
         </div>
     `).join('');
 
-    document.getElementById('analysisSource').textContent =
-        `Fuente de datos: ${data.enriched_with === 'usda_fdc' ? '✅ USDA FDC API' : '🤖 Estimación por IA (Vision)'}`;
+    let sourceText = '🤖 Estimación por IA (Vision)';
+    if (data.enriched_with === 'usda_fdc') sourceText = '✅ USDA FDC API';
+    if (data.enriched_with === 'nutrition_label_ocr') sourceText = '🏷️ Etiqueta Nutricional (OCR)';
+    document.getElementById('analysisSource').textContent = `Fuente de datos: ${sourceText}`;
 
             document.getElementById('analysisResult').style.display = 'block';
 

@@ -8,7 +8,7 @@ import time
 import logging
 import io
 from PIL import Image
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, ToolMessage
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -414,12 +414,18 @@ class LangChainAdapter(ILlmAdapter):
         profile_context: str,
         chat_history: List[Dict[str, str]] = None,
         tool_handlers: Dict[str, Any] = None,
+        mcp_tools: Optional[List[Any]] = None,
     ) -> str:
         """
         Chat with tool calling using LangChain's bind_tools.
         """
         t0 = time.time()
-        llm_with_tools = self.chat_model.bind_tools(CHAT_TOOLS_DEF)
+        # Combine base tools with MCP tools if any
+        all_tools = list(CHAT_TOOLS_DEF)
+        if mcp_tools:
+            all_tools.extend(mcp_tools)
+
+        llm_with_tools = self.chat_model.bind_tools(all_tools)
         messages = self._build_chat_messages(
             user_message, profile_context, chat_history or []
         )
@@ -440,7 +446,22 @@ class LangChainAdapter(ILlmAdapter):
                 args = tool_call["args"]
 
                 t_tool = time.time()
-                result_str = self._execute_chat_tool(fn_name, args, tool_handlers or {})
+                # 1. Try internal handlers
+                if tool_handlers and fn_name in tool_handlers:
+                    result_str = self._execute_chat_tool(fn_name, args, tool_handlers)
+                # 2. Try MCP tools
+                elif mcp_tools:
+                    mcp_tool = next((t for t in mcp_tools if t.name == fn_name), None)
+                    if mcp_tool:
+                        try:
+                            res = mcp_tool.invoke(args)
+                            result_str = json.dumps(res, ensure_ascii=False, default=str)
+                        except Exception as e:
+                            result_str = json.dumps({"error": str(e)})
+                    else:
+                        result_str = json.dumps({"error": f"Tool '{fn_name}' not found"})
+                else:
+                    result_str = json.dumps({"error": f"Tool '{fn_name}' not available"})
                 logger.info("[chat]   Tool '%s' → %.2fs", fn_name, time.time() - t_tool)
                 tools_used.append(fn_name)
 
