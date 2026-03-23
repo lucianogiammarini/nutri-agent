@@ -24,6 +24,7 @@ logging.basicConfig(
     format="%(asctime)s %(name)s %(message)s",
     datefmt="%H:%M:%S",
 )
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 # Import dependency container and routes
 from src.infrastructure.dependency_container import DependencyContainer
@@ -41,8 +42,8 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
 container = DependencyContainer(database_path='database.db')
 
 
-@app.route('/')
-def index():
+@app.route('/home')
+def welcome():
     """Main welcome route"""
     context = {
         'title': 'NutriAgent — Health Manager',

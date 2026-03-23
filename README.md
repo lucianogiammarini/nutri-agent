@@ -27,7 +27,7 @@ No es un simple contador de calorías, sino un agente impulsado por inteligencia
 
 1. **Clonar o descargar el proyecto**
    ```bash
-   cd curso5_actividad
+   cd nutri-agent
    ```
 
 2. **Crear un entorno virtual (recomendado)**

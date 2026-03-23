@@ -134,7 +134,7 @@
         .hidden{display:none!important;}
 
         @media(max-width:900px){.grid-2,.grid-3,.macro-row{grid-template-columns:1fr 1fr;}.form-grid{grid-template-columns:1fr;}}
-        @media(max-width:600px){.topnav{padding:.6rem 1rem;}.container{padding:1rem;}.macro-row{grid-template-columns:1fr;}}
+        @media(max-width:600px){.topnav{padding:.6rem .8rem;}.container{padding:.8rem;}.macro-row{grid-template-columns:1fr 1fr;gap:.5rem;}.profile-bar{padding:.8rem 1rem;gap:.5rem;}.profile-bar select{min-width:100%;}.tab-btn{padding:8px 10px;font-size:.78rem;flex:1;text-align:center;}.card{padding:1.2rem;}.cam-btn{width:100%;justify-content:center;}}
     </style>
 </head>
 <body>
@@ -143,7 +143,7 @@
 <nav class="topnav">
     <a href="/" class="brand"><span>🧬</span> NutriAgent</a>
     <div class="nav-links">
-        <a href="/">Home</a>
+        <a href="/home">Home</a>
         <a href="/web/rag">🔍 RAG</a>
     </div>
 </nav>
@@ -241,13 +241,7 @@
                     <p style="font-size:.8rem;margin-top:.3rem">También podés tomar una foto desde el celular</p>
                 </div>
                 <div style="text-align:center;margin-top:.8rem">
-                    <button class="cam-btn" id="camBtn" onclick="openCamera()">🎥 Abrir Cámara</button>
-                </div>
-                <video id="camVideo" autoplay playsinline style="display:none;width:100%;border-radius:10px;margin-top:1rem"></video>
-                <canvas id="camCanvas" style="display:none"></canvas>
-                <div style="text-align:center">
-                    <button class="cam-btn hidden" id="captureBtn" onclick="capturePhoto()">📸 Capturar</button>
-                    <button class="cam-btn hidden" id="closeCamBtn" onclick="closeCamera()" style="background:var(--red)">✖ Cerrar</button>
+                    <button class="cam-btn" onclick="document.getElementById('imageInput').click()" style="background:var(--primary);width:100%;border-radius:10px;padding:12px;">📸 Usar Cámara del Celular</button>
                 </div>
                 <img id="imagePreview" alt="Preview">
                 <div id="commentWrapper" class="hidden" style="margin-top:.8rem">
@@ -666,45 +660,6 @@ function setImageFile(file) {
     imagePreview.style.display = 'block';
     document.getElementById('analyzeBtn').classList.remove('hidden');
     document.getElementById('commentWrapper').classList.remove('hidden');
-    closeCamera();
-}
-
-// Camera
-function openCamera() {
-    navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})
-        .then(stream => {
-            cameraStream = stream;
-            const video = document.getElementById('camVideo');
-            video.srcObject = stream;
-            video.style.display = 'block';
-            document.getElementById('captureBtn').classList.remove('hidden');
-            document.getElementById('closeCamBtn').classList.remove('hidden');
-            document.getElementById('camBtn').classList.add('hidden');
-        })
-        .catch(() => showAlert('alertGlobal', '❌ No se pudo acceder a la cámara', 'error'));
-}
-
-function capturePhoto() {
-    const video = document.getElementById('camVideo');
-    const canvas = document.getElementById('camCanvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext('2d').drawImage(video, 0, 0);
-    canvas.toBlob(blob => {
-        const file = new File([blob], 'camera_capture.jpg', {type: 'image/jpeg'});
-        setImageFile(file);
-    }, 'image/jpeg', 0.9);
-}
-
-function closeCamera() {
-    if (cameraStream) {
-        cameraStream.getTracks().forEach(t => t.stop());
-        cameraStream = null;
-    }
-    document.getElementById('camVideo').style.display = 'none';
-    document.getElementById('captureBtn').classList.add('hidden');
-    document.getElementById('closeCamBtn').classList.add('hidden');
-    document.getElementById('camBtn').classList.remove('hidden');
 }
 
 async function analyzeMeal() {

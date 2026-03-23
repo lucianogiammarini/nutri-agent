@@ -58,7 +58,7 @@ def configure_nutrition_routes(app: Flask, ctrl: NutritionController):
     """
 
     # Web View
-    app.add_url_rule('/web/dashboard', 'dashboard_view', ctrl.dashboard_view, methods=['GET'])
+    app.add_url_rule('/', 'dashboard_view', ctrl.dashboard_view, methods=['GET'])
 
     # Profiles API
     app.add_url_rule('/api/profiles', 'api_create_profile', ctrl.api_create_profile, methods=['POST'])
