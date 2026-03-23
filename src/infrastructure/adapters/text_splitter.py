@@ -6,9 +6,10 @@ Reads a text corpus and splits it into chunks suitable for embedding.
 
 from typing import List
 from src.domain.chunk import Chunk
+from src.domain.text_splitter_interface import ITextSplitter
 
 
-class TextSplitter:
+class TextSplitter(ITextSplitter):
     """
     Splits a text corpus into overlapping chunks for RAG indexing.
 

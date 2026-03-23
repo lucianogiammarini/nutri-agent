@@ -8,7 +8,10 @@ import os
 
 # RAG / Vector DB imports
 from src.domain.vector_repository_interface import IVectorRepository
-from src.infrastructure.repositories.chroma_vector_repository import ChromaVectorRepository
+from src.domain.text_splitter_interface import ITextSplitter
+from src.infrastructure.repositories.chroma_vector_repository import (
+    ChromaVectorRepository,
+)
 from src.infrastructure.adapters.text_splitter import TextSplitter
 from src.application.vector_use_cases import IndexCorpusUseCase, SearchCorpusUseCase
 from src.infrastructure.web.rag_controller import RAGController
@@ -17,19 +20,28 @@ from src.infrastructure.web.rag_controller import RAGController
 from src.domain.profile_repository_interface import IProfileRepository
 from src.domain.meal_repository_interface import IMealRepository
 from src.domain.chat_repository_interface import IChatRepository
-from src.infrastructure.repositories.sqlite_profile_repository import SQLiteProfileRepository
+from src.infrastructure.repositories.sqlite_profile_repository import (
+    SQLiteProfileRepository,
+)
 from src.infrastructure.repositories.sqlite_meal_repository import SQLiteMealRepository
 from src.infrastructure.repositories.sqlite_chat_repository import SQLiteChatRepository
 from src.infrastructure.repositories.sqlite_nutrition_cache import SQLiteNutritionCache
 from src.infrastructure.adapters.langchain_adapter import LangChainAdapter
 from src.infrastructure.adapters.usda_adapter import USDAAdapter
+from src.domain.llm_adapter_interface import ILlmAdapter
+from src.domain.food_api_interface import IFoodAPI
 from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from src.application.profile_use_cases import (
-    CreateProfileUseCase, GetProfilesUseCase,
-    GetProfileByIdUseCase, UpdateProfileUseCase,
+    CreateProfileUseCase,
+    GetProfilesUseCase,
+    GetProfileByIdUseCase,
+    UpdateProfileUseCase,
 )
 from src.application.meal_use_cases import (
-    AnalyzeMealUseCase, GetMealHistoryUseCase, GetTodaySummaryUseCase,
+    AnalyzeMealUseCase,
+    GetMealHistoryUseCase,
+    GetTodaySummaryUseCase,
 )
 from src.application.chat_use_case import ChatUseCase
 from src.infrastructure.web.nutrition_controller import NutritionController
@@ -40,15 +52,24 @@ class DependencyContainer:
     Dependency container - Dependency Injection Pattern
     """
 
-    def __init__(self, database_path: str = 'database.db', chroma_path: str = 'chroma_db'):
-        self.base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        
+    def __init__(
+        self, database_path: str = "database.db", chroma_path: str = "chroma_db"
+    ):
+        self.base_dir = os.path.dirname(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        )
+
         self.database_path = os.path.join(self.base_dir, database_path)
         self.chroma_path = os.path.join(self.base_dir, chroma_path)
-        
+
         # RAG Paths
-        self.corpus_path = os.getenv("RAG_CORPUS_PATH", os.path.join(self.base_dir, "data", "corpus", "gapa_clean_corpus.txt"))
-        self.manual_pdf_path = os.path.join(self.base_dir, "data", "corpus", "gapa_manual.pdf")
+        self.corpus_path = os.getenv(
+            "RAG_CORPUS_PATH",
+            os.path.join(self.base_dir, "data", "corpus", "gapa_clean_corpus.txt"),
+        )
+        self.manual_pdf_path = os.path.join(
+            self.base_dir, "data", "corpus", "gapa_manual.pdf"
+        )
         self._vector_repository = None
         self._rag_controller = None
         self._profile_repository = None
@@ -61,7 +82,6 @@ class DependencyContainer:
         self._nutrition_controller = None
         self._mcp_sqlite = None
 
-
     # ── MCP Integrations ────────────────────────────────────────
 
     @property
@@ -69,6 +89,7 @@ class DependencyContainer:
         if self._mcp_sqlite is None:
             # Import dynamically to avoid loading async loop at top level
             from src.infrastructure.adapters.mcp_adapter import SyncSQLiteMCP
+
             self._mcp_sqlite = SyncSQLiteMCP(self.database_path)
         return self._mcp_sqlite
 
@@ -96,7 +117,7 @@ class DependencyContainer:
             self._rag_controller = RAGController(
                 index_corpus_use_case=index_use_case,
                 search_corpus_use_case=search_use_case,
-                default_corpus_path=self.corpus_path
+                default_corpus_path=self.corpus_path,
             )
         return self._rag_controller
 
@@ -121,7 +142,7 @@ class DependencyContainer:
         return self._chat_repository
 
     @property
-    def vision_adapter(self) -> LangChainAdapter:
+    def vision_adapter(self) -> ILlmAdapter:
         if self._vision_adapter is None:
             model = ChatOpenAI(model="gpt-4o", api_key=os.getenv("OPENAI_API_KEY", ""))
             self._vision_adapter = LangChainAdapter(chat_model=model)
@@ -130,9 +151,11 @@ class DependencyContainer:
         return self._vision_adapter
 
     @property
-    def chat_adapter(self) -> LangChainAdapter:
+    def chat_adapter(self) -> ILlmAdapter:
         if self._chat_adapter is None:
-            model = ChatOpenAI(model="gpt-4o-mini", api_key=os.getenv("OPENAI_API_KEY", ""))
+            model = ChatGoogleGenerativeAI(
+                model="gemini-3.1-pro-preview", api_key=os.getenv("GOOGLE_API_KEY", "")
+            )
             self._chat_adapter = LangChainAdapter(chat_model=model)
         return self._chat_adapter
 
@@ -143,7 +166,7 @@ class DependencyContainer:
         return self._nutrition_cache
 
     @property
-    def food_api_adapter(self) -> USDAAdapter:
+    def food_api_adapter(self) -> IFoodAPI:
         if self._food_api_adapter is None:
             self._food_api_adapter = USDAAdapter(
                 nutrition_cache=self.nutrition_cache,
@@ -165,7 +188,8 @@ class DependencyContainer:
                 ),
                 get_meal_history=GetMealHistoryUseCase(self.meal_repository),
                 get_today_summary=GetTodaySummaryUseCase(
-                    self.meal_repository, self.profile_repository,
+                    self.meal_repository,
+                    self.profile_repository,
                 ),
                 chat=ChatUseCase(
                     profile_repository=self.profile_repository,

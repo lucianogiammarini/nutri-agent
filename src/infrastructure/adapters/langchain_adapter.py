@@ -2,20 +2,143 @@
 Adapter - LangChain generic adapter for vision analysis and chat (RAG synthesis).
 """
 
-import os
 import json
 import base64
 import time
 import logging
-from typing import Dict, Any, List, Optional
+import io
+from PIL import Image
+from typing import Dict, Any, List
 
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, ToolMessage
 from langchain_core.language_models.chat_models import BaseChatModel
+from src.domain.llm_adapter_interface import ILlmAdapter
+from src.domain.food_api_interface import IFoodAPI
 
 logger = logging.getLogger(__name__)
 
+# ── Prompts and Definitions ────────────────────────────────────────
 
-class LangChainAdapter:
+VISION_SYSTEM_PROMPT = """Eres un nutricionista experto en visión artificial y lector de etiquetas (OCR).
+Analiza la imagen enviada. Detecta si es un PLATO DE COMIDA o una TABLA NUTRICIONAL (etiqueta).
+
+Si es un PLATO DE COMIDA (meal):
+Devuelve ÚNICAMENTE un JSON estructurado así (sin markdown, sin extras):
+{
+  "image_type": "meal",
+  "description": "Descripción breve del plato en español",
+  "food_items": [
+    {
+      "name": "nombre del alimento en español",
+      "name_en": "nombre traducido al INGLÉS (ej: 'raw chicken breast')",
+      "quantity": 150,
+      "unit": "g"
+    }
+  ],
+  "nutrition_facts": null
+}
+REGLAS PARA PLATO:
+- Identifica los alimentos y estima cantidad/unidad. NO calcules calorías ni macronutrientes manualmente.
+
+Si es una TABLA NUTRICIONAL (label):
+Extrae los valores matemáticamente exactos mediante OCR. Si los valores son por porción, extrae los valores POR PORCIÓN (o regla de tres si la cantidad consumida es diferente a una porción y el usuario lo aclaró).
+Devuelve ÚNICAMENTE este JSON (sin markdown, sin extras):
+{
+  "image_type": "label",
+  "description": "Tabla Nutricional de [Producto]",
+  "food_items": [],
+  "nutrition_facts": {
+    "calories": 250.0,
+    "protein": 5.0,
+    "carbs": 30.0,
+    "fat": 10.0
+  }
+}
+
+REGLAS GENERALES:
+- Usa el comentario del usuario (si hay) para ajustar las porciones leídas o estimadas.
+- ESTRICTO: Devuelve ÚNICAMENTE JSON válido, nada antes ni después.
+"""
+
+CHAT_SYSTEM_PROMPT_TEMPLATE = """Eres un agente de intervención metabólica de precisión, 
+experto en nutrición y salud basada en las Guías Alimentarias para la Población Argentina (GAPA).
+
+PERFIL DEL USUARIO:
+{profile_context}
+
+HERRAMIENTAS DISPONIBLES:
+Tenés acceso a herramientas. Usalas cuando sea necesario:
+- query_nutrition: para datos nutricionales
+- search_food_guide: para buscar recomendaciones
+- get_today_summary: para ver el consumo del día
+- get_meal_history: para ver comidas recientes
+
+REGLAS OBLIGATORIAS:
+1. SIEMPRE usa 'search_food_guide' para preguntas de nutrición general.
+2. Usa 'query_nutrition' para alimentos específicos.
+3. Usa 'get_today_summary' para el progreso del día.
+4. Usa 'get_meal_history' para días anteriores.
+"""
+
+CHAT_TOOLS_DEF = [
+    {
+        "type": "function",
+        "function": {
+            "name": "query_nutrition",
+            "description": "Consulta información nutricional de un alimento en la base de datos de USDA. IMPORTANTE: Debes traducir el alimento al INGLÉS antes de buscarlo.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "food_name_en": {
+                        "type": "string",
+                        "description": "El nombre del alimento traducido al INGLÉS (ej. 'raw chicken breast').",
+                    },
+                    "quantity": {"type": "number"},
+                    "unit": {"type": "string"},
+                },
+                "required": ["food_name_en", "quantity", "unit"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_food_guide",
+            "description": "Busca información en las Guías Alimentarias para la Población Argentina.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "consulta": {"type": "string"},
+                },
+                "required": ["consulta"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_today_summary",
+            "description": "Obtiene el resumen de macronutrientes consumidos hoy.",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_meal_history",
+            "description": "Obtiene historial de comidas recientes.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "limite": {"type": "integer"},
+                },
+            },
+        },
+    },
+]
+
+
+class LangChainAdapter(ILlmAdapter):
     """
     Handles communication with LangChain models for:
     - Food image analysis (Vision)
@@ -27,99 +150,53 @@ class LangChainAdapter:
         self.chat_model = chat_model
         self._food_api = None  # injected later
 
-    def set_food_api(self, food_api):
+    def set_food_api(self, food_api: IFoodAPI):
         """Inject the food API adapter for nutrition lookups."""
         self._food_api = food_api
 
-    # ── Vision: Analyze food image ──────────────────────────────────
+    # ── Vision: Helpers ─────────────────────────────────────
 
-    def analyze_food_image(self, image_path: str, user_comment: str = "") -> Dict[str, Any]:
-        """
-        Two-phase analysis (optimized):
-        1. Vision (detail=low) identifies foods and estimates portions.
-        2. Open Food Facts queried directly in parallel (no tool-calling overhead).
-        """
-        t_total = time.time()
-        if user_comment:
-            logger.info("[analyze] Comentario del usuario: '%s'", user_comment)
-
-        # ── Compress & encode image ──────────────────────────────
+    def _encode_image(self, image_path: str) -> tuple[str, str]:
+        """Compresses and base64 encodes the image."""
         t0 = time.time()
         try:
-            from PIL import Image
-            import io
             img = Image.open(image_path)
             img.thumbnail((1024, 1024))
             if img.mode not in ("RGB", "L"):
                 img = img.convert("RGB")
             buf = io.BytesIO()
-            img.save(buf, format="JPEG", quality=80)
+            img.save(buf, format="JPEG", quality=85)
             b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
             mime = "image/jpeg"
-            logger.info("[analyze] Imagen comprimida %dx%d → JPEG 1024px: %.2fs",
-                        img.width, img.height, time.time() - t0)
+            logger.info(
+                "[analyze] Imagen comprimida %dx%d → JPEG 1024px: %.2fs",
+                img.width,
+                img.height,
+                time.time() - t0,
+            )
+            return b64, mime
         except Exception as exc:
-            logger.warning("[analyze] Compresión falló (%s), enviando imagen original", exc)
+            logger.warning(
+                "[analyze] Compresión falló (%s), enviando imagen original", exc
+            )
             with open(image_path, "rb") as f:
                 b64 = base64.b64encode(f.read()).decode("utf-8")
             ext = image_path.rsplit(".", 1)[-1].lower()
             mime = {
-                "jpg": "image/jpeg", "jpeg": "image/jpeg",
-                "png": "image/png", "webp": "image/webp",
+                "jpg": "image/jpeg",
+                "jpeg": "image/jpeg",
+                "png": "image/png",
+                "webp": "image/webp",
                 "avif": "image/avif",
             }.get(ext, "image/jpeg")
-            logger.info("[analyze] Codificación de imagen (sin comprimir): %.2fs", time.time() - t0)
-
-        system_prompt = """Eres un nutricionista experto con visión artificial.
-Analiza la imagen del plato de comida. Tu ÚNICA tarea es identificar los alimentos y estimar sus porciones (cantidad y unidad). NO calcules calorías ni macronutrientes.
-
-Devuelve ÚNICAMENTE un JSON válido (sin markdown, sin ```) con esta estructura:
-{
-  "description": "Descripción breve del plato en español",
-  "food_items": [
-    {
-      "name": "nombre del alimento en español",
-      "name_en": "nombre traducido al INGLÉS (ej: 'raw chicken breast')",
-      "quantity": 150,
-      "unit": "g"
-    }
-  ]
-}
-
-Reglas:
-- Estima las cantidades lo más preciso posible basándote en el tamaño visual.
-- Incluye TODOS los componentes visibles del plato.
-- Usa unidades en gramos (g) siempre que sea posible.
-- IMPORTANTÍSIMO: NO incluyas calorías ni macronutrientes.
-- IMPORTANTE: Si el usuario incluye un comentario (ej: 'comí la mitad'), ajusta las cantidades reflejando el comentario real consumido."""
-
-        user_text = "Identifica los alimentos y estima las porciones de este plato:"
-        if user_comment:
-            user_text += f"\n\nComentario del usuario: \"{user_comment}\""
-
-        # ── Phase 1: Vision API call ─
-        t1 = time.time()
-        
-        messages = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(
-                content=[
-                    {"type": "text", "text": user_text},
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:{mime};base64,{b64}", "detail": "high"},
-                    },
-                ]
+            logger.info(
+                "[analyze] Codificación de imagen (sin comprimir): %.2fs",
+                time.time() - t0,
             )
-        ]
+            return b64, mime
 
-        response = self.chat_model.invoke(messages)
-        logger.info("[analyze] Phase 1 — Vision API (identificar alimentos): %.2fs", time.time() - t1)
-
-        raw_vision = response.content.strip()
-
-        # ── Parse JSON ──────────────────────────────────────────
-        t2 = time.time()
+    def _parse_vision_json(self, raw_vision: str) -> Dict[str, Any]:
+        """Cleans markdown format and parses the vision API JSON response."""
         cleaned = raw_vision
         if cleaned.startswith("```"):
             cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned[3:]
@@ -128,38 +205,78 @@ Reglas:
             cleaned = cleaned.strip()
 
         try:
-            vision_result = json.loads(cleaned)
+            return json.loads(cleaned)
         except json.JSONDecodeError:
-            logger.warning("[analyze] JSON parse falló. Respuesta cruda: %s", raw_vision[:200])
-            return {
-                "description": raw_vision,
-                "food_items": [],
-                "total_calories": 0, "total_protein": 0,
-                "total_carbs": 0, "total_fat": 0,
-                "_raw": raw_vision,
-            }
-        logger.info("[analyze] Parsing JSON de Vision: %.4fs", time.time() - t2)
+            logger.warning(
+                "[analyze] JSON parse falló. Respuesta cruda: %s", raw_vision[:200]
+            )
+            return {}
 
+    def _handle_label_ocr(
+        self, vision_result: Dict[str, Any], raw_vision: str
+    ) -> Dict[str, Any]:
+        """Formats the result when the image is a Nutrition Label (OCR)."""
+        facts = vision_result.get("nutrition_facts") or {}
+        desc = vision_result.get("description", "Producto Envasado (OCR)")
+
+        item = {
+            "name": desc,
+            "name_en": "Packaged Product",
+            "portion": "Etiqueta OCR",
+            "estimated_calories": float(facts.get("calories", 0) or 0),
+            "estimated_protein": float(facts.get("protein", 0) or 0),
+            "estimated_carbs": float(facts.get("carbs", 0) or 0),
+            "estimated_fat": float(facts.get("fat", 0) or 0),
+            "enriched_source": "nutrition_label_ocr",
+        }
+
+        return {
+            "image_type": "label",
+            "description": desc,
+            "food_items": [item],
+            "total_calories": round(item["estimated_calories"], 1),
+            "total_protein": round(item["estimated_protein"], 1),
+            "total_carbs": round(item["estimated_carbs"], 1),
+            "total_fat": round(item["estimated_fat"], 1),
+            "_raw": raw_vision,
+        }
+
+    def _handle_meal_enrichment(
+        self, vision_result: Dict[str, Any], raw_vision: str
+    ) -> Dict[str, Any]:
+        """Enriches the food items directly using USDA if the image is a meal."""
         food_items = vision_result.get("food_items", [])
-
         if not food_items:
             vision_result["_raw"] = raw_vision
-            vision_result.update({"total_calories": 0, "total_protein": 0, "total_carbs": 0, "total_fat": 0})
+            vision_result.update(
+                {
+                    "image_type": "meal",
+                    "total_calories": 0,
+                    "total_protein": 0,
+                    "total_carbs": 0,
+                    "total_fat": 0,
+                }
+            )
             return vision_result
 
-        # ── Phase 2: Direct parallel enrichment (no tool-calling) ──
         t3 = time.time()
         if self._food_api:
             enriched_items = self._food_api.enrich_food_items_parallel(food_items)
         else:
             enriched_items = food_items
             for item in enriched_items:
-                item.setdefault("estimated_calories", 0)
-                item.setdefault("estimated_protein", 0)
-                item.setdefault("estimated_carbs", 0)
-                item.setdefault("estimated_fat", 0)
+                for k in (
+                    "estimated_calories",
+                    "estimated_protein",
+                    "estimated_carbs",
+                    "estimated_fat",
+                ):
+                    item.setdefault(k, 0)
                 item["enriched_source"] = "not_available"
-        logger.info("[analyze] Phase 2 — Open Food Facts (directo, paralelo): %.2fs", time.time() - t3)
+
+        logger.info(
+            "[analyze] Phase 2 — USDA (directo, paralelo): %.2fs", time.time() - t3
+        )
 
         total_cal = sum(i.get("estimated_calories", 0) for i in enriched_items)
         total_prot = sum(i.get("estimated_protein", 0) for i in enriched_items)
@@ -167,6 +284,7 @@ Reglas:
         total_fat = sum(i.get("estimated_fat", 0) for i in enriched_items)
 
         return {
+            "image_type": "meal",
             "description": vision_result.get("description", ""),
             "food_items": enriched_items,
             "total_calories": round(total_cal, 1),
@@ -176,176 +294,107 @@ Reglas:
             "_raw": raw_vision,
         }
 
-    # ── Chat: RAG synthesis with Tool Calling ─────────────────────
+    # ── Vision: Analyze food image ──────────────────────────────────
 
-    def chat_with_context(
+    def analyze_food_image(
+        self, image_path: str, user_comment: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Two-phase analysis (optimized):
+        1. Vision (detail=high) identifies foods/labels.
+        2. Routing: direct OCR return or parallel enrichment via food API.
+        """
+        t_total = time.time()
+        if user_comment:
+            logger.info("[analyze] Comentario del usuario: '%s'", user_comment)
+
+        b64, mime = self._encode_image(image_path)
+
+        user_text = "Analiza la siguiente imagen y extrae los datos correspondientes según sea plato o etiqueta:"
+        if user_comment:
+            user_text += f'\n\nComentario del usuario: "{user_comment}"'
+
+        t1 = time.time()
+        messages = [
+            SystemMessage(content=VISION_SYSTEM_PROMPT),
+            HumanMessage(
+                content=[
+                    {"type": "text", "text": user_text},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:{mime};base64,{b64}",
+                            "detail": "high",
+                        },
+                    },
+                ]
+            ),
+        ]
+
+        response = self.chat_model.invoke(messages)
+        logger.info("[analyze] Phase 1 — Vision API: %.2fs", time.time() - t1)
+
+        raw_vision = response.content.strip()
+        t2 = time.time()
+
+        vision_result = self._parse_vision_json(raw_vision)
+        logger.info("[analyze] Parsing JSON de Vision: %.4fs", time.time() - t2)
+
+        if not vision_result:
+            return {
+                "image_type": "meal",
+                "description": raw_vision,
+                "food_items": [],
+                "total_calories": 0,
+                "total_protein": 0,
+                "total_carbs": 0,
+                "total_fat": 0,
+                "_raw": raw_vision,
+            }
+
+        image_type = vision_result.get("image_type", "meal")
+
+        if image_type == "label":
+            result = self._handle_label_ocr(vision_result, raw_vision)
+        else:
+            result = self._handle_meal_enrichment(vision_result, raw_vision)
+
+        logger.info(
+            "[analyze] Análisis completo finalizado: %.2fs", time.time() - t_total
+        )
+        return result
+
+    # ── Chat: Helpers ─────────────────────────────────────────────
+
+    def _build_chat_messages(
         self,
         user_message: str,
         profile_context: str,
-        chat_history: List[Dict[str, str]] = None,
-        tool_handlers: Dict[str, Any] = None,
-        mcp_tools: List[Any] = None,
-    ) -> str:
-        """
-        Chat with tool calling using LangChain's bind_tools, now supporting MCP tools.
-        """
-        t0 = time.time()
-
-        system_prompt = f"""Eres un agente de intervención metabólica de precisión, 
-experto en nutrición y salud basada en las Guías Alimentarias para la Población Argentina (GAPA).
-
-PERFIL DEL USUARIO:
-{profile_context}
-
-HERRAMIENTAS PARA DATOS DINÁMICOS:
-1. buscar_guia_alimentaria: SIEMPRE usala para recomendaciones oficiales de las GAPA.
-2. consultar_nutricion: para buscar información de alimentos específicos en la USDA.
-3. obtener_resumen_hoy / obtener_historial_comidas: de uso EXCLUSIVO para consultas SIMPLES y rápidas (ej: "¿qué comí ayer?"). PROHIBIDO usarlas para promedios, rankings o sumatorias.
-
-HERRAMIENTAS DE ANALÍTICA AVANZADA (MCP SQLite):
-Tienes acceso directo a la base de datos mediante Model Context Protocol (MCP). 
-Usa 'read_query' OBLIGATORIAMENTE para:
-- TODO cálculo matemático (promedios, totales, porcentajes).
-- TODO ranking o filtrado complejo (ej: "las 3 más calóricas").
-- Análisis comparativos entre días, semanas o meses.
-
-REGLAS:
-- Si la pregunta requiere cálculo o agregación (ej: 'cuánto fue mi promedio de...'), PREFIERE usar 'read_query' sobre SQLite para analítica.
-- Siempre intenta 'list_tables' o 'describe_table' si no estás seguro del esquema antes de hacer un SELECT.
-
-ESTRUCTURA DE TABLA 'meals' (REFERENCIA):
-- user_profile_id (int), total_calories, total_protein, total_carbs, total_fat, created_at.
-"""
-
-        CHAT_TOOLS = [
-            {
-                "type": "function",
-                "function": {
-                    "name": "consultar_nutricion",
-                    "description": "Consulta información nutricional de un alimento en la base de datos de USDA. IMPORTANTE: Debes traducir el alimento al INGLÉS antes de buscarlo.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "food_name_en": {
-                                "type": "string",
-                                "description": "El nombre del alimento traducido al INGLÉS (ej. 'raw chicken breast')."
-                            },
-                            "quantity": {"type": "number"},
-                            "unit": {"type": "string"},
-                        },
-                        "required": ["food_name_en", "quantity", "unit"],
-                    },
-                },
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "buscar_guia_alimentaria",
-                    "description": "Busca información en las Guías Alimentarias para la Población Argentina.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "consulta": {"type": "string"},
-                        },
-                        "required": ["consulta"],
-                    },
-                },
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "obtener_resumen_hoy",
-                    "description": "Obtiene el resumen de macronutrientes consumidos hoy.",
-                    "parameters": {"type": "object", "properties": {}},
-                },
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "obtener_historial_comidas",
-                    "description": "Obtiene una lista simple de las últimas comidas. NO USAR para cálculos, promedios ni análisis estadísticos.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "limite": {"type": "integer"},
-                        },
-                    },
-                },
-            },
-        ]
-
-        mcp_tools = mcp_tools or []
-        llm_with_tools = self.chat_model.bind_tools(CHAT_TOOLS + mcp_tools)
-
-        messages = [SystemMessage(content=system_prompt)]
+        chat_history: List[Dict[str, str]],
+    ) -> List[Any]:
+        """Arranges the system prompt, history, and current user question into Langchain Messages."""
+        system_prompt = CHAT_SYSTEM_PROMPT_TEMPLATE.format(
+            profile_context=profile_context
+        )
+        messages: List[Any] = [SystemMessage(content=system_prompt)]
 
         if chat_history:
             for msg in chat_history[-10:]:
-                if msg["role"] == "user":
-                    messages.append(HumanMessage(content=msg["content"]))
+                if msg.get("role") == "user":
+                    messages.append(HumanMessage(content=msg.get("content", "")))
                 else:
-                    messages.append(AIMessage(content=msg["content"]))
+                    messages.append(AIMessage(content=msg.get("content", "")))
 
         messages.append(HumanMessage(content=user_message))
-
-        max_rounds = 5
-        round_count = 0
-        tools_used = []
-
-        logger.info("[chat] Enviando mensaje: '%s'", user_message[:80])
-        response_msg = llm_with_tools.invoke(messages)
-
-        while response_msg.tool_calls and round_count < max_rounds:
-            round_count += 1
-            messages.append(response_msg)
-            
-            for tool_call in response_msg.tool_calls:
-                fn_name = tool_call["name"]
-                args = tool_call["args"]
-
-                t_tool = time.time()
-                result_str = self._execute_chat_tool(fn_name, args, tool_handlers or {}, mcp_tools)
-                logger.info("[chat]   Tool '%s' → %.2fs", fn_name, time.time() - t_tool)
-                tools_used.append(fn_name)
-
-                messages.append(ToolMessage(
-                    tool_call_id=tool_call["id"],
-                    content=result_str,
-                    name=fn_name
-                ))
-
-            response_msg = llm_with_tools.invoke(messages)
-
-        logger.info("[chat] ✅ Respuesta generada (%.2fs, %d rondas, tools: %s)",
-                     time.time() - t0, round_count, tools_used or "ninguna")
-
-        final_text = str(response_msg.content).strip()
-        if not final_text:
-            logger.warning("[chat] El LLM devolvió texto vacío tras %d rondas. Retornando fallback.", round_count)
-            final_text = "Lo siento, intenté buscar esa información pero tuve problemas obteniendo los datos exactos. ¿Podrías intentar preguntar de otra forma?"
-
-        return final_text
+        return messages
 
     def _execute_chat_tool(
         self,
         name: str,
         arguments: Dict[str, Any],
         handlers: Dict[str, Any],
-        mcp_tools: List[Any] = None,
     ) -> str:
-        if mcp_tools:
-            for mt in mcp_tools:
-                if mt.name == name:
-                    try:
-                        logger.info("[chat-mcp] Calling MCP Tool: %s with args: %s", name, arguments)
-                        res = mt.invoke(arguments)
-                        if isinstance(res, list) and len(res) > 0 and isinstance(res[0], dict) and 'text' in res[0]:
-                            return str(res[0]['text'])
-                        return str(res)
-                    except Exception as e:
-                        logger.warning("[chat-mcp] Tool '%s' error: %s", name, e)
-                        return json.dumps({"error": str(e)})
-
+        """Executes a requested tool function and returns the JSON stringified result."""
         handler = handlers.get(name)
         if not handler:
             return json.dumps({"error": f"Tool '{name}' not available"})
@@ -356,3 +405,79 @@ ESTRUCTURA DE TABLA 'meals' (REFERENCIA):
         except Exception as e:
             logger.warning("[chat] Tool '%s' error: %s", name, e)
             return json.dumps({"error": str(e)})
+
+    # ── Chat: RAG synthesis with Tool Calling ─────────────────────
+
+    def chat_with_context(
+        self,
+        user_message: str,
+        profile_context: str,
+        chat_history: List[Dict[str, str]] = None,
+        tool_handlers: Dict[str, Any] = None,
+    ) -> str:
+        """
+        Chat with tool calling using LangChain's bind_tools.
+        """
+        t0 = time.time()
+        llm_with_tools = self.chat_model.bind_tools(CHAT_TOOLS_DEF)
+        messages = self._build_chat_messages(
+            user_message, profile_context, chat_history or []
+        )
+
+        max_rounds = 3
+        round_count = 0
+        tools_used = []
+
+        logger.info("[chat] Enviando mensaje: '%s'", user_message[:80])
+        response_msg = llm_with_tools.invoke(messages)
+
+        while response_msg.tool_calls and round_count < max_rounds:
+            round_count += 1
+            messages.append(response_msg)
+
+            for tool_call in response_msg.tool_calls:
+                fn_name = tool_call["name"]
+                args = tool_call["args"]
+
+                t_tool = time.time()
+                result_str = self._execute_chat_tool(fn_name, args, tool_handlers or {})
+                logger.info("[chat]   Tool '%s' → %.2fs", fn_name, time.time() - t_tool)
+                tools_used.append(fn_name)
+
+                messages.append(
+                    ToolMessage(
+                        tool_call_id=tool_call["id"], content=result_str, name=fn_name
+                    )
+                )
+
+            # Re-invoke the LLM with the new messages containing the execution results
+            response_msg = llm_with_tools.invoke(messages)
+
+        logger.info(
+            "[chat] ✅ Respuesta generada (%.2fs, %d rondas, tools: %s)",
+            time.time() - t0,
+            round_count,
+            tools_used or "ninguna",
+        )
+
+        if isinstance(response_msg.content, list):
+            texts = [
+                item.get("text", "")
+                if isinstance(item, dict) and item.get("type") == "text"
+                else str(item)
+                for item in response_msg.content
+                if (isinstance(item, dict) and item.get("type") == "text")
+                or isinstance(item, str)
+            ]
+            final_text = "".join(texts).strip()
+        else:
+            final_text = str(response_msg.content).strip()
+
+        if not final_text:
+            logger.warning(
+                "[chat] El LLM devolvió texto vacío tras %d rondas. Retornando fallback.",
+                round_count,
+            )
+            final_text = "Lo siento, intenté buscar esa información pero tuve problemas obteniendo los datos exactos. ¿Podrías intentar preguntar de otra forma?"
+
+        return final_text

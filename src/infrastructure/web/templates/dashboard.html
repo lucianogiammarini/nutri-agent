@@ -1522,8 +1522,8 @@
         </div>
     `).join('');
 
-            document.getElementById('analysisSource').textContent =
-                `Fuente de datos: ${data.enriched_with === 'openfoodfacts' ? '✅ Open Food Facts API' : '🤖 Estimación por IA (Vision)'}`;
+    document.getElementById('analysisSource').textContent =
+        `Fuente de datos: ${data.enriched_with === 'usda_fdc' ? '✅ USDA FDC API' : '🤖 Estimación por IA (Vision)'}`;
 
             document.getElementById('analysisResult').style.display = 'block';
 

@@ -16,8 +16,8 @@ from src.domain.chat_repository_interface import IChatRepository
 from src.domain.profile_repository_interface import IProfileRepository
 from src.domain.meal_repository_interface import IMealRepository
 from src.domain.vector_repository_interface import IVectorRepository
-from src.infrastructure.adapters.langchain_adapter import LangChainAdapter
-from src.infrastructure.adapters.openfoodfacts_adapter import OpenFoodFactsAdapter
+from src.domain.llm_adapter_interface import ILlmAdapter
+from src.domain.food_api_interface import IFoodAPI
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +34,8 @@ class ChatUseCase:
         meal_repository: IMealRepository,
         vector_repository: IVectorRepository,
         chat_repository: IChatRepository,
-        chat_adapter: LangChainAdapter,
-        food_api_adapter: OpenFoodFactsAdapter,
+        chat_adapter: ILlmAdapter,
+        food_api_adapter: IFoodAPI,
         mcp_sqlite=None,
     ):
         self.profile_repo = profile_repository
@@ -49,17 +49,17 @@ class ChatUseCase:
     def execute(self, profile_id: int, message: str) -> Dict[str, Any]:
         try:
             if not message or not message.strip():
-                return {'success': False, 'error': 'Message cannot be empty'}
+                return {"success": False, "error": "Message cannot be empty"}
 
             # 1. Load profile (always needed — lightweight)
             profile = self.profile_repo.get_by_id(profile_id)
             if not profile:
-                return {'success': False, 'error': 'Profile not found'}
+                return {"success": False, "error": "Profile not found"}
 
             goal_labels = {
-                'deficit': 'Déficit calórico / Bajar de peso',
-                'maintenance': 'Mantenimiento',
-                'muscle_gain': 'Aumento de masa muscular',
+                "deficit": "Déficit calórico / Bajar de peso",
+                "maintenance": "Mantenimiento",
+                "muscle_gain": "Aumento de masa muscular",
             }
             profile_ctx = (
                 f"Nombre: {profile.name}, Edad: {profile.age} años, "
@@ -88,27 +88,31 @@ class ChatUseCase:
             )
 
             # 5. Save messages
-            self.chat_repo.save(ChatMessage(
-                user_profile_id=profile_id,
-                role="user",
-                content=message,
-            ))
-            self.chat_repo.save(ChatMessage(
-                user_profile_id=profile_id,
-                role="assistant",
-                content=response,
-            ))
+            self.chat_repo.save(
+                ChatMessage(
+                    user_profile_id=profile_id,
+                    role="user",
+                    content=message,
+                )
+            )
+            self.chat_repo.save(
+                ChatMessage(
+                    user_profile_id=profile_id,
+                    role="assistant",
+                    content=response,
+                )
+            )
 
             return {
-                'success': True,
-                'data': {
-                    'response': response,
+                "success": True,
+                "data": {
+                    "response": response,
                 },
             }
         except ValueError as e:
-            return {'success': False, 'error': str(e)}
+            return {"success": False, "error": str(e)}
         except Exception as e:
-            return {'success': False, 'error': f'Chat error: {str(e)}'}
+            return {"success": False, "error": f"Chat error: {str(e)}"}
 
     def _build_tool_handlers(self, profile_id: int, profile) -> Dict[str, Any]:
         """
@@ -116,7 +120,9 @@ class ChatUseCase:
         to execute when the model invokes a tool.
         """
 
-        def consultar_nutricion(food_name_en: str, quantity: float = 100, unit: str = "g") -> Dict:
+        def query_nutrition(
+            food_name_en: str, quantity: float = 100, unit: str = "g"
+        ) -> Dict:
             """Query USDA FoodData Central for nutrition data."""
             result = self.food_api.query_nutrition(food_name_en, quantity, unit)
             if result:
@@ -131,26 +137,36 @@ class ChatUseCase:
                     "azucar": result.get("sugar", 0),
                     "fuente": "USDA FoodData Central",
                 }
-            return {"error": f"No se encontró información nutricional para '{food_name_en}' en USDA"}
+            return {
+                "error": f"No se encontró información nutricional para '{food_name_en}' en USDA"
+            }
 
-        def buscar_guia_alimentaria(consulta: str) -> Dict:
+        def search_food_guide(consulta: str) -> Dict:
             """RAG search on the GAPA vector DB."""
-            logger.info("[chat-tool] buscar_guia_alimentaria('%s')", consulta[:80])
-            chunks = self.vector_repo.search(consulta, top_k=6)
+            logger.info("[chat-tool] search_food_guide('%s')", consulta[:80])
+            chunks = self.vector_repo.search(consulta, top_k=4)
             if chunks:
                 logger.info("[chat-tool] GAPA: %d fragmentos encontrados", len(chunks))
                 return {
                     "resultados": len(chunks),
                     "fragmentos": [
-                        {"texto": c.text, "relevancia": round(c.score, 3) if hasattr(c, 'score') else None}
+                        {
+                            "texto": c.text,
+                            "relevancia": round(c.score, 3)
+                            if hasattr(c, "score")
+                            else None,
+                        }
                         for c in chunks
                     ],
                     "fuente": "Guías Alimentarias para la Población Argentina (GAPA)",
                 }
             logger.info("[chat-tool] GAPA: sin resultados para '%s'", consulta[:50])
-            return {"resultados": 0, "mensaje": "No se encontró información relevante en las GAPA"}
+            return {
+                "resultados": 0,
+                "mensaje": "No se encontró información relevante en las GAPA",
+            }
 
-        def obtener_resumen_hoy() -> Dict:
+        def get_today_summary() -> Dict:
             """Get today's consumed macros vs goals."""
             meals = self.meal_repo.get_today_by_profile(profile_id)
             consumed_cal = sum(m.total_calories for m in meals)
@@ -173,20 +189,32 @@ class ChatUseCase:
                     "grasas": profile.daily_fat,
                 },
                 "porcentaje": {
-                    "calorias": round(consumed_cal / profile.daily_calories * 100) if profile.daily_calories else 0,
-                    "proteinas": round(consumed_prot / profile.daily_protein * 100) if profile.daily_protein else 0,
-                    "carbohidratos": round(consumed_carbs / profile.daily_carbs * 100) if profile.daily_carbs else 0,
-                    "grasas": round(consumed_fat / profile.daily_fat * 100) if profile.daily_fat else 0,
+                    "calorias": round(consumed_cal / profile.daily_calories * 100)
+                    if profile.daily_calories
+                    else 0,
+                    "proteinas": round(consumed_prot / profile.daily_protein * 100)
+                    if profile.daily_protein
+                    else 0,
+                    "carbohidratos": round(consumed_carbs / profile.daily_carbs * 100)
+                    if profile.daily_carbs
+                    else 0,
+                    "grasas": round(consumed_fat / profile.daily_fat * 100)
+                    if profile.daily_fat
+                    else 0,
                 },
                 "comidas": [
-                    {"descripcion": m.description, "calorias": m.total_calories,
-                     "proteinas": m.total_protein, "carbohidratos": m.total_carbs,
-                     "grasas": m.total_fat}
+                    {
+                        "descripcion": m.description,
+                        "calorias": m.total_calories,
+                        "proteinas": m.total_protein,
+                        "carbohidratos": m.total_carbs,
+                        "grasas": m.total_fat,
+                    }
                     for m in meals
                 ],
             }
 
-        def obtener_historial_comidas(limite: int = 10) -> Dict:
+        def get_meal_history(limite: int = 10) -> Dict:
             """Get recent meal history."""
             meals = self.meal_repo.get_by_profile(profile_id, limit=min(limite, 20))
             return {
@@ -205,32 +233,34 @@ class ChatUseCase:
             }
 
         return {
-            "consultar_nutricion": consultar_nutricion,
-            "buscar_guia_alimentaria": buscar_guia_alimentaria,
-            "obtener_resumen_hoy": obtener_resumen_hoy,
-            "obtener_historial_comidas": obtener_historial_comidas,
+            "query_nutrition": query_nutrition,
+            "search_food_guide": search_food_guide,
+            "get_today_summary": get_today_summary,
+            "get_meal_history": get_meal_history,
         }
 
     def get_history(self, profile_id: int) -> Dict[str, Any]:
         try:
             messages = self.chat_repo.get_by_profile(profile_id, limit=50)
             return {
-                'success': True,
-                'data': [
+                "success": True,
+                "data": [
                     {
                         "role": m.role,
                         "content": m.content,
-                        "created_at": m.created_at.isoformat() if m.created_at else None,
+                        "created_at": m.created_at.isoformat()
+                        if m.created_at
+                        else None,
                     }
                     for m in messages
                 ],
             }
         except Exception as e:
-            return {'success': False, 'error': str(e)}
+            return {"success": False, "error": str(e)}
 
     def clear_history(self, profile_id: int) -> Dict[str, Any]:
         try:
             self.chat_repo.delete_by_profile(profile_id)
-            return {'success': True, 'message': 'Chat history cleared'}
+            return {"success": True, "message": "Chat history cleared"}
         except Exception as e:
-            return {'success': False, 'error': str(e)}
+            return {"success": False, "error": str(e)}

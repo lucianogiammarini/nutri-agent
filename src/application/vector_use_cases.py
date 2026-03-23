@@ -6,10 +6,9 @@ Orchestrates corpus indexing and semantic search operations.
 
 import time
 import logging
-from typing import Dict, Any, List
-from src.domain.chunk import Chunk
+from typing import Dict, Any
 from src.domain.vector_repository_interface import IVectorRepository
-from src.infrastructure.adapters.text_splitter import TextSplitter
+from src.domain.text_splitter_interface import ITextSplitter
 
 logger = logging.getLogger(__name__)
 
@@ -23,9 +22,7 @@ class IndexCorpusUseCase:
     """
 
     def __init__(
-        self,
-        vector_repository: IVectorRepository,
-        text_splitter: TextSplitter
+        self, vector_repository: IVectorRepository, text_splitter: ITextSplitter
     ):
         self.vector_repository = vector_repository
         self.text_splitter = text_splitter
@@ -36,7 +33,11 @@ class IndexCorpusUseCase:
         """
         try:
             t0 = time.time()
-            logger.info("[RAG-UC] Indexando corpus '%s' (clear=%s)...", file_path, clear_existing)
+            logger.info(
+                "[RAG-UC] Indexando corpus '%s' (clear=%s)...",
+                file_path,
+                clear_existing,
+            )
 
             if clear_existing:
                 self.vector_repository.clear()
@@ -47,36 +48,33 @@ class IndexCorpusUseCase:
 
             if not chunks:
                 return {
-                    'success': False,
-                    'error': 'No chunks were generated from the file'
+                    "success": False,
+                    "error": "No chunks were generated from the file",
                 }
 
             # Store chunks in vector DB
             stored_count = self.vector_repository.add_chunks(chunks)
 
-            logger.info("[RAG-UC] ✓ Indexación completa: %d chunks en %.2fs",
-                        stored_count, time.time() - t0)
+            logger.info(
+                "[RAG-UC] ✓ Indexación completa: %d chunks en %.2fs",
+                stored_count,
+                time.time() - t0,
+            )
 
             return {
-                'success': True,
-                'message': f'Corpus indexed successfully',
-                'data': {
-                    'chunks_created': len(chunks),
-                    'chunks_stored': stored_count,
-                    'total_in_db': self.vector_repository.count(),
-                    'file': file_path
-                }
+                "success": True,
+                "message": f"Corpus indexed successfully",
+                "data": {
+                    "chunks_created": len(chunks),
+                    "chunks_stored": stored_count,
+                    "total_in_db": self.vector_repository.count(),
+                    "file": file_path,
+                },
             }
         except FileNotFoundError:
-            return {
-                'success': False,
-                'error': f'File not found: {file_path}'
-            }
+            return {"success": False, "error": f"File not found: {file_path}"}
         except Exception as e:
-            return {
-                'success': False,
-                'error': f'Error indexing corpus: {str(e)}'
-            }
+            return {"success": False, "error": f"Error indexing corpus: {str(e)}"}
 
 
 class SearchCorpusUseCase:
@@ -103,39 +101,36 @@ class SearchCorpusUseCase:
         """
         try:
             if not query or not query.strip():
-                return {
-                    'success': False,
-                    'error': 'Query cannot be empty'
-                }
+                return {"success": False, "error": "Query cannot be empty"}
 
             total_chunks = self.vector_repository.count()
             if total_chunks == 0:
                 logger.warning("[RAG-UC] Búsqueda fallida: corpus no indexado")
                 return {
-                    'success': False,
-                    'error': 'The corpus has not been indexed yet. Please index first.'
+                    "success": False,
+                    "error": "The corpus has not been indexed yet. Please index first.",
                 }
 
-            logger.info("[RAG-UC] Búsqueda web: '%s' (top_k=%d, corpus=%d chunks)",
-                        query.strip()[:80], top_k, total_chunks)
+            logger.info(
+                "[RAG-UC] Búsqueda web: '%s' (top_k=%d, corpus=%d chunks)",
+                query.strip()[:80],
+                top_k,
+                total_chunks,
+            )
 
             results = self.vector_repository.search(query.strip(), top_k=top_k)
 
             logger.info("[RAG-UC] ✓ %d resultados retornados", len(results))
 
             return {
-                'success': True,
-                'message': f'Found {len(results)} relevant chunks',
-                'data': {
-                    'query': query,
-                    'top_k': top_k,
-                    'total_chunks_in_db': total_chunks,
-                    'results': [chunk.to_dict() for chunk in results]
-                }
+                "success": True,
+                "message": f"Found {len(results)} relevant chunks",
+                "data": {
+                    "query": query,
+                    "top_k": top_k,
+                    "total_chunks_in_db": total_chunks,
+                    "results": [chunk.to_dict() for chunk in results],
+                },
             }
         except Exception as e:
-            return {
-                'success': False,
-                'error': f'Error searching corpus: {str(e)}'
-            }
-
+            return {"success": False, "error": f"Error searching corpus: {str(e)}"}

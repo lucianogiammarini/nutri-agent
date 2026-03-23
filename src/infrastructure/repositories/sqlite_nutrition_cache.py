@@ -8,7 +8,6 @@ Avoids redundant HTTP calls for repeated foods.
 import sqlite3
 import json
 import logging
-import time
 from typing import Optional, Dict, Any
 from datetime import datetime
 
@@ -19,20 +18,19 @@ CACHE_TTL_SECONDS = 7 * 24 * 60 * 60
 
 
 class SQLiteNutritionCache:
-
-    def __init__(self, database_path: str = 'database.db'):
+    def __init__(self, database_path: str = "database.db"):
         self.database_path = database_path
         self._init_database()
 
     def _init_database(self):
         conn = self._get_connection()
-        conn.execute('''
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS nutrition_cache (
                 food_key   TEXT PRIMARY KEY,
                 data_json  TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        ''')
+        """)
         conn.commit()
         conn.close()
 
@@ -51,7 +49,7 @@ class SQLiteNutritionCache:
         key = self._normalize_key(food_name)
         conn = self._get_connection()
         row = conn.execute(
-            'SELECT data_json, created_at FROM nutrition_cache WHERE food_key = ?',
+            "SELECT data_json, created_at FROM nutrition_cache WHERE food_key = ?",
             (key,),
         ).fetchone()
         conn.close()
@@ -61,7 +59,7 @@ class SQLiteNutritionCache:
 
         # Check TTL
         try:
-            created = datetime.fromisoformat(row['created_at'])
+            created = datetime.fromisoformat(row["created_at"])
             age = (datetime.now() - created).total_seconds()
             if age > CACHE_TTL_SECONDS:
                 self.delete(key)
@@ -70,7 +68,7 @@ class SQLiteNutritionCache:
             pass
 
         try:
-            return json.loads(row['data_json'])
+            return json.loads(row["data_json"])
         except (json.JSONDecodeError, TypeError):
             return None
 
@@ -79,8 +77,8 @@ class SQLiteNutritionCache:
         key = self._normalize_key(food_name)
         conn = self._get_connection()
         conn.execute(
-            '''INSERT OR REPLACE INTO nutrition_cache (food_key, data_json, created_at)
-               VALUES (?, ?, ?)''',
+            """INSERT OR REPLACE INTO nutrition_cache (food_key, data_json, created_at)
+               VALUES (?, ?, ?)""",
             (key, json.dumps(data, ensure_ascii=False), datetime.now().isoformat()),
         )
         conn.commit()
@@ -88,7 +86,6 @@ class SQLiteNutritionCache:
 
     def delete(self, key: str) -> None:
         conn = self._get_connection()
-        conn.execute('DELETE FROM nutrition_cache WHERE food_key = ?', (key,))
+        conn.execute("DELETE FROM nutrition_cache WHERE food_key = ?", (key,))
         conn.commit()
         conn.close()
-

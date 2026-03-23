@@ -7,7 +7,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 logger = logging.getLogger(__name__)
 
-class USDAAdapter:
+from src.domain.food_api_interface import IFoodAPI
+
+class USDAAdapter(IFoodAPI):
     """
     Queries the USDA FoodData Central API for nutrition data.
     Requires English search terms.
