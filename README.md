@@ -26,6 +26,7 @@ No es un simple contador de calorías, sino un agente impulsado por inteligencia
 ## 🔧 Instalación
 
 1. **Clonar o descargar el proyecto**
+   Puedes descargar el proyecto desde el repositorio oficial: [https://github.com/lucianogiammarini/nutri-agent](https://github.com/lucianogiammarini/nutri-agent), o alternativamente descargar el archivo `.zip` adjunto.
    ```bash
    cd nutri-agent
    ```
