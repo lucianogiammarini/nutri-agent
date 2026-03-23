@@ -92,6 +92,9 @@ Analicé tres modelos destacados evaluando su viabilidad combinando estas dos co
 
 > *Nota sobre Búsqueda Interna:* Para buscar palabras dentro de mis documentos de salud, utilicé un modelo local y de uso libre (`paraphrase-multilingual-MiniLM-L12-v2`). Esto hace que las búsquedas internas para el Chatbot sean totalmente gratuitas e instantáneas.
 
+### ⚠️ Estado Actual de la Implementación
+> Aunque el presente análisis determinó a **Gemini 3.1 Pro Preview** y **Gemini 3 Flash** como los modelos ideales por costo y rendimiento, **su integración se encuentra documentada como trabajo futuro a aplicar**. La implementación actual del sistema se construyó utilizando la suite de OpenAI (**ChatGPT / GPT-4o / GPT-4o-mini**) dado que el desarrollo técnico inicial del proyecto se llevó a cabo de forma _previa_ a la realización de este análisis de mercado y posterior selección de modelos.
+> 
 ---
 
 ## 4. Cálculo Estimado del Costo por Usuario
@@ -119,9 +122,9 @@ Rediseñar un proyecto "desde cero" con parámetros empíricos reales aterriza l
 
 ---
 
-## 5. Mejoras Futuras / Próximos Pasos
+## 5. Posibles Mejoras Futuras
 
-A futuro, tengo planeado extender las capacidades de la plataforma implementando las siguientes mejoras:
+A futuro, se podrían extender las capacidades de la plataforma implementando las siguientes mejoras:
 
 1. **Lectura Inteligente de Etiquetas:** Sumar un nuevo caso de uso interactivo donde el usuario simplemente pueda sacarle una foto directa a la "Tabla Nutricional" o a los envases de alimentos industrializados, y que la plataforma extraiga automáticamente los valores limpios usando un *pipeline* intensivo de validación OCR con visión artificial.
 2. **Expansión Modular de la Base de Conocimiento (RAG):** Agregar nuevos manuales avalados por el estado y documentos de salud oficiales anexos (como protocolos de *medicina deportiva funcional* vigentes o normativas unificadas pediátricas/geriátricas de la Organización Mundial de la Salud - OMS) para expandir los horizontes clínicos del *Asistente Nutricional*.
