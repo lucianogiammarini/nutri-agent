@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🥗 NutriAgent — Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <style>
+        :root{--primary:#6366f1;--primary-light:#818cf8;--primary-dark:#4f46e5;--secondary:#8b5cf6;--green:#10b981;--green-light:#d1fae5;--red:#ef4444;--red-light:#fee2e2;--orange:#f59e0b;--yellow:#eab308;--bg:#f8fafc;--card:#fff;--text:#1e293b;--muted:#64748b;--border:#e2e8f0;--radius:12px;--shadow-sm:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);--shadow-md:0 4px 16px rgba(0,0,0,.06);--shadow-lg:0 12px 40px rgba(0,0,0,.08);}
+        *{margin:0;padding:0;box-sizing:border-box;}
+        body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;}
+
+        /* ── Top Nav (glassmorphism) ──────────────────── */
+        .topnav{position:sticky;top:0;z-index:100;background:rgba(255,255,255,.82);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--border);padding:.75rem 2rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;}
+        .topnav .brand{display:flex;align-items:center;gap:.5rem;text-decoration:none;color:var(--primary);font-weight:800;font-size:1.15rem;letter-spacing:-.02em;}
+        .topnav .brand span{font-size:1.3rem;}
+        .topnav .nav-links{display:flex;gap:.35rem;flex-wrap:wrap;}
+        .topnav a{padding:7px 15px;border-radius:8px;font-size:.82rem;font-weight:600;text-decoration:none;color:var(--muted);transition:background .15s,color .15s;}
+        .topnav a:hover{background:#f1f5f9;color:var(--text);}
+
+        /* ── Profile Bar ─────────────────────────────── */
+        .profile-bar{background:var(--card);padding:.8rem 2rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap;border-bottom:1px solid var(--border);}
+        .profile-bar select{padding:8px 14px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;font-size:.88rem;min-width:220px;background:var(--bg);color:var(--text);transition:border-color .15s;}
+        .profile-bar select:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 3px rgba(99,102,241,.12);}
+        .profile-bar .info{font-size:.82rem;color:var(--muted);}
+
+        /* ── Layout ──────────────────────────────────── */
+        .container{max-width:1260px;margin:0 auto;padding:1.5rem;}
+        .tabs{display:flex;gap:.4rem;margin-bottom:1.5rem;flex-wrap:wrap;background:var(--card);padding:.4rem;border-radius:var(--radius);box-shadow:var(--shadow-sm);}
+        .tab-btn{padding:9px 20px;border:none;background:transparent;border-radius:8px;cursor:pointer;font-family:inherit;font-weight:600;font-size:.85rem;color:var(--muted);transition:background .15s,color .15s;}
+        .tab-btn:hover{background:#f1f5f9;color:var(--text);}
+        .tab-btn.active{background:var(--primary);color:#fff;box-shadow:0 2px 8px rgba(99,102,241,.3);}
+        .tab-panel{display:none;animation:fadeUp .35s ease both;}
+        .tab-panel.active{display:block;}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+        /* ── Cards ────────────────────────────────────── */
+        .grid{display:grid;gap:1.25rem;}
+        .grid-2{grid-template-columns:1fr 1fr;}
+        .grid-3{grid-template-columns:1fr 1fr 1fr;}
+        .card{background:var(--card);border-radius:var(--radius);padding:1.5rem;box-shadow:var(--shadow-sm);border:1px solid var(--border);}
+        .card h3{color:var(--text);margin-bottom:1rem;font-size:1.05rem;font-weight:700;letter-spacing:-.01em;}
+
+        /* ── Macros Stats ────────────────────────────── */
+        .macro-row{display:grid;grid-template-columns:repeat(4,1fr);gap:.8rem;margin-bottom:1.5rem;}
+        .macro-card{background:var(--card);border-radius:var(--radius);padding:1.1rem;text-align:center;box-shadow:var(--shadow-sm);border:1px solid var(--border);border-top:3px solid var(--primary);position:relative;overflow:hidden;}
+        .macro-card::after{content:'';position:absolute;top:0;right:0;width:50px;height:50px;border-radius:0 0 0 50px;opacity:.06;}
+        .macro-card.cal{border-top-color:var(--orange);}.macro-card.cal::after{background:var(--orange);}
+        .macro-card.prot{border-top-color:var(--red);}.macro-card.prot::after{background:var(--red);}
+        .macro-card.carbs{border-top-color:var(--primary);}.macro-card.carbs::after{background:var(--primary);}
+        .macro-card.fat{border-top-color:var(--yellow);}.macro-card.fat::after{background:var(--yellow);}
+        .macro-card .value{font-size:1.7rem;font-weight:800;margin:.25rem 0;letter-spacing:-.02em;}
+        .macro-card .label{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;font-weight:600;}
+        .macro-card .sub{font-size:.72rem;color:var(--muted);}
+        .progress-bar{height:6px;background:#f1f5f9;border-radius:3px;margin-top:.5rem;overflow:hidden;}
+        .progress-bar .fill{height:100%;border-radius:3px;transition:width .6s cubic-bezier(.4,0,.2,1);}
+
+        /* ── Meal cards ──────────────────────────────── */
+        .meal-card{display:flex;gap:1rem;background:var(--bg);padding:1rem;border-radius:10px;margin-bottom:.6rem;border:1px solid var(--border);border-left:3px solid var(--primary-light);align-items:center;transition:transform .15s,box-shadow .15s;}
+        .meal-card:hover{transform:translateX(3px);box-shadow:var(--shadow-sm);}
+        .meal-card img{width:72px;height:72px;object-fit:cover;border-radius:8px;flex-shrink:0;}
+        .meal-card .meal-info{flex:1;}
+        .meal-card .meal-info h4{margin-bottom:.2rem;font-size:.9rem;font-weight:600;}
+        .meal-card .meal-info p{font-size:.78rem;color:var(--muted);}
+        .meal-card .meal-macros{display:flex;gap:.6rem;font-size:.72rem;font-weight:600;color:var(--primary);margin-top:.3rem;flex-wrap:wrap;}
+
+        /* ── Upload area ─────────────────────────────── */
+        .upload-area{border:2px dashed var(--border);border-radius:var(--radius);padding:2rem;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;position:relative;}
+        .upload-area:hover{border-color:var(--primary-light);background:#fafaff;}
+        .upload-area.dragover{border-color:var(--green);background:#f0fdf4;}
+        .upload-area input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;}
+        .upload-area .icon{font-size:2.5rem;margin-bottom:.5rem;opacity:.7;}
+        .upload-area p{color:var(--muted);font-size:.88rem;}
+        #imagePreview{max-width:100%;max-height:280px;border-radius:10px;margin-top:1rem;display:none;box-shadow:var(--shadow-md);}
+        .cam-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-weight:600;font-size:.85rem;margin-top:.5rem;transition:background .15s,transform .1s;}
+        .cam-btn:hover{background:var(--primary-dark);}
+        .cam-btn:active{transform:scale(.97);}
+
+        /* ── Analysis result ─────────────────────────── */
+        .analysis-result{display:none;margin-top:1.5rem;}
+        .food-item{display:flex;justify-content:space-between;align-items:center;padding:.55rem .8rem;background:var(--bg);border-radius:8px;margin-bottom:.35rem;font-size:.88rem;border:1px solid var(--border);}
+        .food-item .fi-name{font-weight:600;}
+        .food-item .fi-macros{color:var(--muted);font-size:.78rem;}
+
+        /* ── Chat ────────────────────────────────────── */
+        .chat-messages{height:480px;overflow-y:auto;padding:1.2rem;display:flex;flex-direction:column;gap:.7rem;background:var(--bg);scroll-behavior:smooth;}
+        .chat-msg{max-width:78%;padding:.75rem 1rem;border-radius:14px;font-size:.88rem;line-height:1.6;word-wrap:break-word;position:relative;}
+        .chat-msg.user{background:var(--primary);color:#fff;align-self:flex-end;border-bottom-right-radius:4px;}
+        .chat-msg.assistant{background:var(--card);color:var(--text);align-self:flex-start;border-bottom-left-radius:4px;border:1px solid var(--border);box-shadow:var(--shadow-sm);}
+        .chat-msg.assistant p{margin:.25rem 0;}
+        .chat-msg .msg-time{display:block;font-size:.65rem;opacity:.55;margin-top:.3rem;text-align:right;}
+        .chat-msg.assistant .msg-time{text-align:left;}
+        .chat-date-separator{align-self:center;background:#e2e8f0;color:#64748b;font-size:.72rem;font-weight:600;padding:3px 14px;border-radius:12px;margin:.5rem 0;user-select:none;}
+        .chat-examples{padding:.8rem 1rem;background:#f1f5f9;border-bottom:1px solid var(--border);transition:all .2s;}
+        .chat-examples.hidden{display:none;}
+        .chat-examples-grid{display:flex;flex-wrap:wrap;gap:.4rem;}
+        .example-chip{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:.78rem;cursor:pointer;font-family:inherit;color:var(--text);transition:all .15s;white-space:nowrap;}
+        .example-chip:hover{background:var(--primary);color:#fff;border-color:var(--primary);transform:translateY(-1px);box-shadow:var(--shadow-sm);}
+        .chat-input-row{display:flex;gap:.5rem;padding:.8rem 1rem;border-top:1px solid var(--border);background:var(--card);}
+        .chat-input-row input{flex:1;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;font-size:.9rem;background:var(--bg);}
+        .chat-input-row input:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 3px rgba(99,102,241,.12);}
+        .chat-input-row button{padding:10px 18px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-weight:600;font-size:.88rem;transition:background .15s;}
+        .chat-input-row button:hover{background:var(--primary-dark);}
+        .typing{display:none;align-self:flex-start;color:var(--muted);font-style:italic;font-size:.82rem;align-items:center;gap:.4rem;}
+
+        /* ── Profile form ────────────────────────────── */
+        .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:.8rem 1.2rem;}
+        .form-group{margin-bottom:.6rem;}
+        .form-group label{display:block;margin-bottom:.35rem;font-weight:600;font-size:.82rem;color:var(--muted);}
+        .form-group input,.form-group select,.form-group textarea{width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;font-size:.88rem;background:var(--bg);color:var(--text);transition:border-color .15s,box-shadow .15s;}
+        .form-group input:focus,.form-group select:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 3px rgba(99,102,241,.12);}
+
+        /* ── Buttons ─────────────────────────────────── */
+        .btn{display:inline-flex;align-items:center;gap:5px;padding:9px 20px;border:none;border-radius:8px;font-family:inherit;font-weight:600;cursor:pointer;font-size:.85rem;transition:background .15s,transform .1s,box-shadow .15s;text-decoration:none;}
+        .btn:active{transform:scale(.97);}
+        .btn-primary{background:var(--primary);color:#fff;}.btn-primary:hover{background:var(--primary-dark);box-shadow:0 4px 14px rgba(99,102,241,.3);}
+        .btn-success{background:var(--green);color:#fff;}.btn-success:hover{background:#059669;box-shadow:0 4px 14px rgba(16,185,129,.3);}
+        .btn-danger{background:var(--red);color:#fff;}.btn-danger:hover{background:#dc2626;}
+        .btn-sm{padding:6px 13px;font-size:.78rem;}
+
+        /* ── Alerts ──────────────────────────────────── */
+        .alert{padding:.75rem 1rem;border-radius:8px;margin-bottom:1rem;font-size:.88rem;}
+        .alert-success{background:var(--green-light);color:#065f46;border-left:3px solid var(--green);}
+        .alert-error{background:var(--red-light);color:#7f1d1d;border-left:3px solid var(--red);}
+        .alert-info{background:#dbeafe;color:#1e40af;border-left:3px solid #3b82f6;}
+
+        .spinner-sm{display:inline-block;width:16px;height:16px;border:2.5px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .6s linear infinite;}
+        @keyframes spin{to{transform:rotate(360deg)}}
+
+        .empty-state{text-align:center;padding:2.5rem;color:var(--muted);}
+        .empty-state .icon{font-size:2.5rem;margin-bottom:.5rem;opacity:.4;}
+        .hidden{display:none!important;}
+
+        @media(max-width:900px){.grid-2,.grid-3,.macro-row{grid-template-columns:1fr 1fr;}.form-grid{grid-template-columns:1fr;}}
+        @media(max-width:600px){.topnav{padding:.6rem 1rem;}.container{padding:1rem;}.macro-row{grid-template-columns:1fr;}}
+    </style>
+</head>
+<body>
+
+<!-- ═══ Top Navigation ═══════════════════════════════════════════ -->
+<nav class="topnav">
+    <a href="/" class="brand"><span>🧬</span> NutriAgent</a>
+    <div class="nav-links">
+        <a href="/">Home</a>
+        <a href="/web/rag">🔍 RAG</a>
+    </div>
+</nav>
+
+<!-- ═══ Profile Selector ═════════════════════════════════════════ -->
+<div class="profile-bar">
+    <span style="font-weight:700">👤 Perfil:</span>
+    <select id="profileSelect" onchange="onProfileChange()">
+        <option value="">-- Seleccionar perfil --</option>
+    </select>
+    <button class="btn btn-success btn-sm" onclick="showTab('profile')">➕ Nuevo Perfil</button>
+    <span id="profileInfo" class="info"></span>
+</div>
+
+<!-- ═══ Main Container ═══════════════════════════════════════════ -->
+<div class="container">
+    <div id="alertGlobal"></div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="dashboard" onclick="showTab('dashboard')">📊 Dashboard</button>
+        <button class="tab-btn" data-tab="meal" onclick="showTab('meal')">📸 Nueva Comida</button>
+        <button class="tab-btn" data-tab="history" onclick="showTab('history')">📜 Historial</button>
+        <button class="tab-btn" data-tab="chat" onclick="showTab('chat')">💬 Chat Nutricional</button>
+        <button class="tab-btn" data-tab="profile" onclick="showTab('profile')">⚙️ Perfil</button>
+    </div>
+
+    <!-- ═══ TAB: Dashboard ═══════════════════════════════════════ -->
+    <div id="tab-dashboard" class="tab-panel active">
+        <div id="noprofile-dash" class="empty-state">
+            <div class="icon">👤</div>
+            <h3>Seleccioná o creá un perfil para comenzar</h3>
+        </div>
+        <div id="dash-content" class="hidden">
+            <div class="macro-row">
+                <div class="macro-card cal">
+                    <div class="label">Calorías</div>
+                    <div class="value" id="d-cal">0</div>
+                    <div class="sub" id="d-cal-sub">de 0 kcal</div>
+                    <div class="progress-bar"><div class="fill" id="d-cal-bar" style="width:0;background:var(--orange)"></div></div>
+                </div>
+                <div class="macro-card prot">
+                    <div class="label">Proteínas</div>
+                    <div class="value" id="d-prot">0g</div>
+                    <div class="sub" id="d-prot-sub">de 0g</div>
+                    <div class="progress-bar"><div class="fill" id="d-prot-bar" style="width:0;background:var(--red)"></div></div>
+                </div>
+                <div class="macro-card carbs">
+                    <div class="label">Carbohidratos</div>
+                    <div class="value" id="d-carbs">0g</div>
+                    <div class="sub" id="d-carbs-sub">de 0g</div>
+                    <div class="progress-bar"><div class="fill" id="d-carbs-bar" style="width:0;background:var(--primary)"></div></div>
+                </div>
+                <div class="macro-card fat">
+                    <div class="label">Grasas</div>
+                    <div class="value" id="d-fat">0g</div>
+                    <div class="sub" id="d-fat-sub">de 0g</div>
+                    <div class="progress-bar"><div class="fill" id="d-fat-bar" style="width:0;background:#d69e2e"></div></div>
+                </div>
+            </div>
+
+            <div class="grid grid-2">
+                <div class="card">
+                    <h3>🍩 Macros del Día vs Meta</h3>
+                    <canvas id="donutChart" height="260"></canvas>
+                </div>
+                <div class="card">
+                    <h3>🍽️ Comidas de Hoy (<span id="meals-count">0</span>)</h3>
+                    <div id="dash-meals-list"></div>
+                    <div id="dash-meals-empty" class="empty-state" style="padding:1.5rem">
+                        <div class="icon">📷</div>
+                        <p>Subí una foto de tu comida para comenzar</p>
+                        <button class="btn btn-primary btn-sm" style="margin-top:.8rem" onclick="showTab('meal')">📸 Analizar Comida</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ TAB: New Meal ════════════════════════════════════════ -->
+    <div id="tab-meal" class="tab-panel">
+        <div id="noprofile-meal" class="empty-state">
+            <div class="icon">👤</div>
+            <h3>Seleccioná o creá un perfil para analizar comidas</h3>
+            <button class="btn btn-success btn-sm" style="margin-top:.8rem" onclick="showTab('profile')">➕ Nuevo Perfil</button>
+        </div>
+        <div id="meal-content" class="hidden">
+        <div class="grid grid-2">
+            <div class="card">
+                <h3>📸 Subir / Capturar Foto</h3>
+                <div class="upload-area" id="uploadArea">
+                    <input type="file" id="imageInput" accept="image/*" capture="environment">
+                    <div class="icon">📷</div>
+                    <p>Arrastrá una imagen o hacé clic para subir</p>
+                    <p style="font-size:.8rem;margin-top:.3rem">También podés tomar una foto desde el celular</p>
+                </div>
+                <div style="text-align:center;margin-top:.8rem">
+                    <button class="cam-btn" id="camBtn" onclick="openCamera()">🎥 Abrir Cámara</button>
+                </div>
+                <video id="camVideo" autoplay playsinline style="display:none;width:100%;border-radius:10px;margin-top:1rem"></video>
+                <canvas id="camCanvas" style="display:none"></canvas>
+                <div style="text-align:center">
+                    <button class="cam-btn hidden" id="captureBtn" onclick="capturePhoto()">📸 Capturar</button>
+                    <button class="cam-btn hidden" id="closeCamBtn" onclick="closeCamera()" style="background:var(--red)">✖ Cerrar</button>
+                </div>
+                <img id="imagePreview" alt="Preview">
+                <div id="commentWrapper" class="hidden" style="margin-top:.8rem">
+                    <label for="mealComment" style="font-size:.85rem;font-weight:600;color:var(--text)">💬 Comentario (opcional):</label>
+                    <textarea id="mealComment" rows="2" placeholder="Ej: &quot;Comí la mitad&quot;, &quot;Solo 2 porciones de pizza&quot;, &quot;Sin la salsa&quot;..." style="width:100%;margin-top:.3rem;padding:.6rem;border:1px solid var(--border);border-radius:8px;font-size:.9rem;resize:vertical;font-family:inherit"></textarea>
+                </div>
+                <div style="text-align:center;margin-top:1rem">
+                    <button class="btn btn-success hidden" id="analyzeBtn" onclick="analyzeMeal()">
+                        🔬 Analizar Comida
+                    </button>
+                </div>
+                <div id="analyzeLoading" class="hidden" style="text-align:center;padding:2rem">
+                    <div class="spinner-sm"></div>
+                    <p style="margin-top:.5rem;color:var(--muted)">Analizando imagen con IA...</p>
+                </div>
+            </div>
+            <div class="card">
+                <h3>📋 Resultado del Análisis</h3>
+                <div id="analysisEmpty" class="empty-state" style="padding:2rem">
+                    <div class="icon">🔬</div>
+                    <p>Subí una foto y hacé clic en "Analizar" para ver los resultados</p>
+                </div>
+                <div id="analysisResult" class="analysis-result">
+                    <img id="analysisPhoto" alt="Foto analizada" style="display:none;max-width:100%;max-height:220px;border-radius:10px;margin-bottom:1rem;box-shadow:var(--shadow-md)">
+                    <div class="alert alert-success" id="analysisDesc"></div>
+                    <h4 style="margin:1rem 0 .5rem">Alimentos detectados:</h4>
+                    <div id="analysisFoods"></div>
+                    <div style="margin-top:1rem;padding:1rem;background:#f7fafc;border-radius:10px">
+                        <h4>Totales estimados:</h4>
+                        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem;margin-top:.5rem;text-align:center">
+                            <div><div style="font-size:1.3rem;font-weight:800" id="a-cal">0</div><div style="font-size:.7rem;color:var(--muted)">kcal</div></div>
+                            <div><div style="font-size:1.3rem;font-weight:800;color:var(--red)" id="a-prot">0g</div><div style="font-size:.7rem;color:var(--muted)">Proteínas</div></div>
+                            <div><div style="font-size:1.3rem;font-weight:800;color:var(--primary)" id="a-carbs">0g</div><div style="font-size:.7rem;color:var(--muted)">Carbos</div></div>
+                            <div><div style="font-size:1.3rem;font-weight:800;color:#d69e2e" id="a-fat">0g</div><div style="font-size:.7rem;color:var(--muted)">Grasas</div></div>
+                        </div>
+                    </div>
+                    <div id="analysisSource" style="margin-top:.5rem;font-size:.75rem;color:var(--muted)"></div>
+                </div>
+            </div>
+        </div>
+        </div> <!-- /meal-content -->
+    </div>
+
+    <!-- ═══ TAB: History ═════════════════════════════════════════ -->
+    <div id="tab-history" class="tab-panel">
+        <div id="noprofile-history" class="empty-state">
+            <div class="icon">👤</div>
+            <h3>Seleccioná o creá un perfil para ver el historial</h3>
+            <button class="btn btn-success btn-sm" style="margin-top:.8rem" onclick="showTab('profile')">➕ Nuevo Perfil</button>
+        </div>
+        <div id="history-content" class="hidden">
+        <div class="card">
+            <h3>📜 Historial de Comidas</h3>
+            <div id="historyList"></div>
+            <div id="historyEmpty" class="empty-state">
+                <div class="icon">🍽️</div>
+                <h3>Sin comidas registradas</h3>
+                <p>Analizá tu primera comida para verla acá</p>
+            </div>
+        </div>
+        </div> <!-- /history-content -->
+    </div>
+
+    <!-- ═══ TAB: Chat ════════════════════════════════════════════ -->
+    <div id="tab-chat" class="tab-panel">
+        <div id="noprofile-chat" class="empty-state">
+            <div class="icon">👤</div>
+            <h3>Seleccioná o creá un perfil para usar el chat nutricional</h3>
+            <button class="btn btn-success btn-sm" style="margin-top:.8rem" onclick="showTab('profile')">➕ Nuevo Perfil</button>
+        </div>
+        <div id="chat-content" class="hidden">
+        <div class="card" style="padding:0;overflow:hidden;">
+            <div style="padding:1rem 1.2rem;background:linear-gradient(135deg,var(--primary),var(--secondary));color:#fff;display:flex;justify-content:space-between;align-items:center;border-radius:var(--radius) var(--radius) 0 0;">
+                <h3 style="color:#fff;margin:0;font-size:.95rem;">💬 Agente de Salud Nutricional</h3>
+                <div style="display:flex;gap:.4rem;">
+                    <button class="btn btn-sm" style="background:rgba(255,255,255,.18);color:#fff;font-size:.75rem;" onclick="toggleExamples()">💡 Ejemplos</button>
+                    <button class="btn btn-sm" style="background:rgba(255,255,255,.18);color:#fff;font-size:.75rem;" onclick="clearChat()">🗑️ Limpiar</button>
+                </div>
+            </div>
+            <div id="chatExamples" class="chat-examples hidden">
+                <div class="chat-examples-grid">
+                    <button class="example-chip" onclick="useExample(this)">🥗 ¿Cómo voy con mis macros hoy?</button>
+                    <button class="example-chip" onclick="useExample(this)">💧 ¿Cuántos litros de agua debo tomar por día?</button>
+                    <button class="example-chip" onclick="useExample(this)">🥩 ¿Cuánta proteína tiene 200g de pollo?</button>
+                    <button class="example-chip" onclick="useExample(this)">😴 Me siento cansado, ¿tiene que ver con lo que comí?</button>
+                    <button class="example-chip" onclick="useExample(this)">📊 ¿Qué comí los últimos días?</button>
+                    <button class="example-chip" onclick="useExample(this)">🍎 ¿Cuántas frutas debería comer por día según las GAPA?</button>
+                    <button class="example-chip" onclick="useExample(this)">🧈 ¿Estoy excedido en grasas hoy?</button>
+                    <button class="example-chip" onclick="useExample(this)">🍞 ¿Los carbohidratos son malos para bajar de peso?</button>
+                    <button class="example-chip" onclick="useExample(this)">🥛 ¿Qué alimentos son ricos en calcio?</button>
+                    <button class="example-chip" onclick="useExample(this)">🏋️ ¿Qué debería comer antes de entrenar?</button>
+                </div>
+            </div>
+            <div class="chat-messages" id="chatMessages">
+                <div class="chat-msg assistant">
+                    <p>👋 ¡Hola! Soy tu agente de salud nutricional. Puedo analizar tu alimentación del día, darte consejos basados en las Guías Alimentarias Argentinas (GAPA) y ayudarte a alcanzar tus objetivos.</p>
+                    <p>Preguntame lo que quieras, por ejemplo: <em>"¿Estoy comiendo suficientes proteínas hoy?"</em></p>
+                </div>
+                <div class="typing" id="chatTyping"><div class="spinner-sm"></div>&nbsp; Pensando...</div>
+            </div>
+            <div class="chat-input-row">
+                <input type="text" id="chatInput" placeholder="Escribí tu consulta nutricional..." onkeydown="if(event.key==='Enter')sendChat()">
+                <button onclick="sendChat()">Enviar ➤</button>
+            </div>
+        </div>
+        </div> <!-- /chat-content -->
+    </div>
+
+    <!-- ═══ TAB: Profile ═════════════════════════════════════════ -->
+    <div id="tab-profile" class="tab-panel">
+        <div class="card">
+            <h3 id="profileFormTitle">➕ Crear Perfil</h3>
+            <div id="profileAlert"></div>
+            <form id="profileForm" onsubmit="saveProfile(event)">
+                <input type="hidden" id="pf-id" value="">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>👤 Nombre</label>
+                        <input type="text" id="pf-name" required placeholder="Tu nombre">
+                    </div>
+                    <div class="form-group">
+                        <label>🎂 Edad</label>
+                        <input type="number" id="pf-age" required min="1" max="150" placeholder="30">
+                    </div>
+                    <div class="form-group">
+                        <label>⚖️ Peso (kg)</label>
+                        <input type="number" id="pf-weight" required step="0.1" min="1" placeholder="70">
+                    </div>
+                    <div class="form-group">
+                        <label>📏 Altura (cm)</label>
+                        <input type="number" id="pf-height" required min="1" placeholder="170">
+                    </div>
+                    <div class="form-group">
+                        <label>🎯 Objetivo</label>
+                        <select id="pf-goal">
+                            <option value="maintenance">Mantenimiento</option>
+                            <option value="deficit">Déficit calórico / Bajar de peso</option>
+                            <option value="muscle_gain">Aumento de masa muscular</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>🔥 Meta Calorías Diarias</label>
+                        <input type="number" id="pf-calories" value="2000" min="500">
+                    </div>
+                    <div class="form-group">
+                        <label>🥩 Proteínas (g/día)</label>
+                        <input type="number" id="pf-protein" value="75" step="0.1" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>🍞 Carbohidratos (g/día)</label>
+                        <input type="number" id="pf-carbs" value="250" step="0.1" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>🧈 Grasas (g/día)</label>
+                        <input type="number" id="pf-fat" value="65" step="0.1" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>⚠️ Alergias / Restricciones</label>
+                        <input type="text" id="pf-allergies" placeholder="ej: lactosa, gluten, maní">
+                    </div>
+                </div>
+                <div style="display:flex;gap:.5rem;margin-top:.5rem;">
+                    <button type="submit" class="btn btn-success">💾 Guardar Perfil</button>
+                    <button type="button" class="btn btn-primary" onclick="resetProfileForm()">🔄 Nuevo</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════ */
+/*                     STATE & INITIALIZATION                     */
+/* ═══════════════════════════════════════════════════════════════ */
+let currentProfileId = null;
+let donutChart = null;
+let selectedFile = null;
+let cameraStream = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadProfiles();
+});
+
+/* ═══════════════════════════════════════════════════════════════ */
+/*                         TAB NAVIGATION                         */
+/* ═══════════════════════════════════════════════════════════════ */
+function showTab(name) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    const btn = document.querySelector(`.tab-btn[data-tab="${name}"]`);
+    if (btn) btn.classList.add('active');
+    document.getElementById('tab-' + name).classList.add('active');
+
+    if (name === 'dashboard' && currentProfileId) loadDashboard();
+    if (name === 'history' && currentProfileId) loadHistory();
+    if (name === 'chat' && currentProfileId) loadChatHistory();
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/*                          PROFILES                              */
+/* ═══════════════════════════════════════════════════════════════ */
+async function loadProfiles() {
+    const res = await fetch('/api/profiles');
+    const data = await res.json();
+    const sel = document.getElementById('profileSelect');
+    sel.innerHTML = '<option value="">-- Seleccionar perfil --</option>';
+    if (data.success && data.data.length) {
+        data.data.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.id;
+            opt.textContent = `${p.name} (${p.goal === 'deficit' ? '⬇️' : p.goal === 'muscle_gain' ? '💪' : '⚖️'} ${p.daily_calories}kcal)`;
+            sel.appendChild(opt);
+        });
+        // Auto-select first
+        if (!currentProfileId && data.data.length) {
+            sel.value = data.data[0].id;
+            onProfileChange();
+        }
+    }
+}
+
+function onProfileChange() {
+    const id = document.getElementById('profileSelect').value;
+    currentProfileId = id ? parseInt(id) : null;
+    const info = document.getElementById('profileInfo');
+
+    const panels = ['dash', 'meal', 'history', 'chat'];
+
+    if (currentProfileId) {
+        info.textContent = '✅ Perfil activo';
+        panels.forEach(p => {
+            document.getElementById(`noprofile-${p}`).classList.add('hidden');
+            document.getElementById(`${p}-content`).classList.remove('hidden');
+        });
+        loadDashboard();
+        loadProfileIntoForm(currentProfileId);
+        resetChatUI();
+        loadChatHistory();
+        loadHistory();
+    } else {
+        info.textContent = '';
+        panels.forEach(p => {
+            document.getElementById(`noprofile-${p}`).classList.remove('hidden');
+            document.getElementById(`${p}-content`).classList.add('hidden');
+        });
+    }
+}
+
+function resetChatUI() {
+    const container = document.getElementById('chatMessages');
+    const typing = document.getElementById('chatTyping');
+    container.innerHTML = `
+        <div class="chat-msg assistant">
+            <p>👋 ¡Hola! Soy tu agente de nutrición. ¿En qué puedo ayudarte?</p>
+        </div>`;
+    container.appendChild(typing);
+    _lastChatDate = '';
+}
+
+async function saveProfile(e) {
+    e.preventDefault();
+    const id = document.getElementById('pf-id').value;
+    const body = {
+        name: document.getElementById('pf-name').value,
+        age: parseInt(document.getElementById('pf-age').value),
+        weight: parseFloat(document.getElementById('pf-weight').value),
+        height: parseFloat(document.getElementById('pf-height').value),
+        goal: document.getElementById('pf-goal').value,
+        daily_calories: parseInt(document.getElementById('pf-calories').value),
+        daily_protein: parseFloat(document.getElementById('pf-protein').value),
+        daily_carbs: parseFloat(document.getElementById('pf-carbs').value),
+        daily_fat: parseFloat(document.getElementById('pf-fat').value),
+        allergies: document.getElementById('pf-allergies').value,
+    };
+    const url = id ? `/api/profiles/${id}` : '/api/profiles';
+    const method = id ? 'PUT' : 'POST';
+    const res = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    const data = await res.json();
+    if (data.success) {
+        showAlert('profileAlert', `✅ Perfil ${id ? 'actualizado' : 'creado'}: ${data.data.name}`, 'success');
+        await loadProfiles();
+        document.getElementById('profileSelect').value = data.data.id;
+        onProfileChange();
+    } else {
+        showAlert('profileAlert', '❌ ' + data.error, 'error');
+    }
+}
+
+async function loadProfileIntoForm(pid) {
+    const res = await fetch(`/api/profiles/${pid}`);
+    const data = await res.json();
+    if (data.success) {
+        const p = data.data;
+        document.getElementById('pf-id').value = p.id;
+        document.getElementById('pf-name').value = p.name;
+        document.getElementById('pf-age').value = p.age;
+        document.getElementById('pf-weight').value = p.weight;
+        document.getElementById('pf-height').value = p.height;
+        document.getElementById('pf-goal').value = p.goal;
+        document.getElementById('pf-calories').value = p.daily_calories;
+        document.getElementById('pf-protein').value = p.daily_protein;
+        document.getElementById('pf-carbs').value = p.daily_carbs;
+        document.getElementById('pf-fat').value = p.daily_fat;
+        document.getElementById('pf-allergies').value = p.allergies;
+        document.getElementById('profileFormTitle').textContent = '✏️ Editar Perfil';
+    }
+}
+
+function resetProfileForm() {
+    document.getElementById('pf-id').value = '';
+    document.getElementById('profileForm').reset();
+    document.getElementById('profileFormTitle').textContent = '➕ Crear Perfil';
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/*                          DASHBOARD                             */
+/* ═══════════════════════════════════════════════════════════════ */
+async function loadDashboard() {
+    if (!currentProfileId) return;
+    const res = await fetch(`/api/dashboard/${currentProfileId}`);
+    const data = await res.json();
+    if (!data.success) return;
+
+    const {consumed, goals, meals_today, meals} = data.data;
+    const pct = (v, g) => g > 0 ? Math.min(Math.round(v / g * 100), 100) : 0;
+
+    document.getElementById('d-cal').textContent = Math.round(consumed.calories);
+    document.getElementById('d-cal-sub').textContent = `de ${goals.calories} kcal`;
+    document.getElementById('d-cal-bar').style.width = pct(consumed.calories, goals.calories) + '%';
+
+    document.getElementById('d-prot').textContent = Math.round(consumed.protein) + 'g';
+    document.getElementById('d-prot-sub').textContent = `de ${goals.protein}g`;
+    document.getElementById('d-prot-bar').style.width = pct(consumed.protein, goals.protein) + '%';
+
+    document.getElementById('d-carbs').textContent = Math.round(consumed.carbs) + 'g';
+    document.getElementById('d-carbs-sub').textContent = `de ${goals.carbs}g`;
+    document.getElementById('d-carbs-bar').style.width = pct(consumed.carbs, goals.carbs) + '%';
+
+    document.getElementById('d-fat').textContent = Math.round(consumed.fat) + 'g';
+    document.getElementById('d-fat-sub').textContent = `de ${goals.fat}g`;
+    document.getElementById('d-fat-bar').style.width = pct(consumed.fat, goals.fat) + '%';
+
+    document.getElementById('meals-count').textContent = meals_today;
+
+    // Donut chart
+    updateDonut(consumed, goals);
+
+    // Today's meals list
+    const list = document.getElementById('dash-meals-list');
+    const empty = document.getElementById('dash-meals-empty');
+    if (meals && meals.length) {
+        empty.classList.add('hidden');
+        list.innerHTML = meals.map(m => mealCardHTML(m)).join('');
+    } else {
+        list.innerHTML = '';
+        empty.classList.remove('hidden');
+    }
+}
+
+function updateDonut(consumed, goals) {
+    const ctx = document.getElementById('donutChart').getContext('2d');
+    const prot = consumed.protein;
+    const carbs = consumed.carbs;
+    const fat = consumed.fat;
+    const remaining = Math.max(0, goals.calories - consumed.calories);
+
+    if (donutChart) donutChart.destroy();
+    donutChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: [`Proteínas ${Math.round(prot)}g`, `Carbos ${Math.round(carbs)}g`, `Grasas ${Math.round(fat)}g`, 'Restante'],
+            datasets: [{
+                data: [prot * 4, carbs * 4, fat * 9, remaining],
+                backgroundColor: ['#ef4444', '#6366f1', '#eab308', '#f1f5f9'],
+                borderWidth: 2,
+                borderColor: '#fff',
+            }]
+        },
+        options: {
+            responsive: true,
+            cutout: '65%',
+            plugins: {
+                legend: {position: 'bottom', labels: {padding: 15, font: {size: 12}}},
+                tooltip: {
+                    callbacks: {
+                        label: (c) => ` ${c.label}: ${Math.round(c.raw)} kcal`
+                    }
+                }
+            }
+        }
+    });
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/*                      MEAL ANALYSIS                             */
+/* ═══════════════════════════════════════════════════════════════ */
+const imageInput = document.getElementById('imageInput');
+const imagePreview = document.getElementById('imagePreview');
+const uploadArea = document.getElementById('uploadArea');
+
+imageInput.addEventListener('change', (e) => {
+    if (e.target.files[0]) setImageFile(e.target.files[0]);
+});
+
+uploadArea.addEventListener('dragover', (e) => {e.preventDefault(); uploadArea.classList.add('dragover');});
+uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+uploadArea.addEventListener('drop', (e) => {
+    e.preventDefault(); uploadArea.classList.remove('dragover');
+    if (e.dataTransfer.files[0]) setImageFile(e.dataTransfer.files[0]);
+});
+
+function setImageFile(file) {
+    selectedFile = file;
+    const url = URL.createObjectURL(file);
+    imagePreview.src = url;
+    imagePreview.style.display = 'block';
+    document.getElementById('analyzeBtn').classList.remove('hidden');
+    document.getElementById('commentWrapper').classList.remove('hidden');
+    closeCamera();
+}
+
+// Camera
+function openCamera() {
+    navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})
+        .then(stream => {
+            cameraStream = stream;
+            const video = document.getElementById('camVideo');
+            video.srcObject = stream;
+            video.style.display = 'block';
+            document.getElementById('captureBtn').classList.remove('hidden');
+            document.getElementById('closeCamBtn').classList.remove('hidden');
+            document.getElementById('camBtn').classList.add('hidden');
+        })
+        .catch(() => showAlert('alertGlobal', '❌ No se pudo acceder a la cámara', 'error'));
+}
+
+function capturePhoto() {
+    const video = document.getElementById('camVideo');
+    const canvas = document.getElementById('camCanvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    canvas.toBlob(blob => {
+        const file = new File([blob], 'camera_capture.jpg', {type: 'image/jpeg'});
+        setImageFile(file);
+    }, 'image/jpeg', 0.9);
+}
+
+function closeCamera() {
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(t => t.stop());
+        cameraStream = null;
+    }
+    document.getElementById('camVideo').style.display = 'none';
+    document.getElementById('captureBtn').classList.add('hidden');
+    document.getElementById('closeCamBtn').classList.add('hidden');
+    document.getElementById('camBtn').classList.remove('hidden');
+}
+
+async function analyzeMeal() {
+    if (!currentProfileId) { showAlert('alertGlobal', '⚠️ Seleccioná un perfil primero', 'error'); return; }
+    if (!selectedFile) return;
+
+    document.getElementById('analyzeBtn').classList.add('hidden');
+    document.getElementById('analyzeLoading').classList.remove('hidden');
+    document.getElementById('analysisResult').style.display = 'none';
+    document.getElementById('analysisEmpty').style.display = 'none';
+
+    const form = new FormData();
+    form.append('profile_id', currentProfileId);
+    form.append('image', selectedFile);
+    const comment = document.getElementById('mealComment').value.trim();
+    if (comment) form.append('comment', comment);
+
+    try {
+        const res = await fetch('/api/meals/analyze', {method: 'POST', body: form});
+        const data = await res.json();
+
+        document.getElementById('analyzeLoading').classList.add('hidden');
+
+        if (data.success) {
+            showAnalysisResult(data);
+            loadDashboard();
+            document.getElementById('mealComment').value = '';
+            document.getElementById('commentWrapper').classList.add('hidden');
+        } else {
+            showAlert('alertGlobal', '❌ ' + data.error, 'error');
+            document.getElementById('analyzeBtn').classList.remove('hidden');
+        }
+    } catch (err) {
+        document.getElementById('analyzeLoading').classList.add('hidden');
+        document.getElementById('analyzeBtn').classList.remove('hidden');
+        showAlert('alertGlobal', '❌ Error de conexión: ' + err.message, 'error');
+    }
+}
+
+function showAnalysisResult(data) {
+    const meal = data.data;
+
+    // Show analyzed photo in result panel
+    const analysisPhoto = document.getElementById('analysisPhoto');
+    if (meal.photo_path) {
+        analysisPhoto.src = '/' + meal.photo_path;
+        analysisPhoto.style.display = 'block';
+    } else {
+        analysisPhoto.style.display = 'none';
+    }
+
+    document.getElementById('analysisDesc').textContent = '✅ ' + meal.description;
+    document.getElementById('a-cal').textContent = Math.round(meal.total_calories);
+    document.getElementById('a-prot').textContent = Math.round(meal.total_protein) + 'g';
+    document.getElementById('a-carbs').textContent = Math.round(meal.total_carbs) + 'g';
+    document.getElementById('a-fat').textContent = Math.round(meal.total_fat) + 'g';
+
+    const foodsDiv = document.getElementById('analysisFoods');
+    const items = meal.food_items || [];
+    foodsDiv.innerHTML = items.map(f => `
+        <div class="food-item">
+            <span class="fi-name">${esc(f.name)} (${f.quantity}${f.unit})</span>
+            <span class="fi-macros">${Math.round(f.estimated_calories || 0)}kcal · P:${Math.round(f.estimated_protein || 0)}g · C:${Math.round(f.estimated_carbs || 0)}g · G:${Math.round(f.estimated_fat || 0)}g</span>
+        </div>
+    `).join('');
+
+    document.getElementById('analysisSource').textContent =
+        `Fuente de datos: ${data.enriched_with === 'openfoodfacts' ? '✅ Open Food Facts API' : '🤖 Estimación por IA (Vision)'}`;
+
+    document.getElementById('analysisResult').style.display = 'block';
+
+    // Reset upload area for a new image
+    imagePreview.style.display = 'none';
+    imagePreview.src = '';
+    imageInput.value = '';
+    document.getElementById('analyzeBtn').classList.add('hidden');
+    selectedFile = null;
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/*                       MEAL HISTORY                             */
+/* ═══════════════════════════════════════════════════════════════ */
+async function loadHistory() {
+    if (!currentProfileId) return;
+    const res = await fetch(`/api/meals/${currentProfileId}?limit=30`);
+    const data = await res.json();
+    const list = document.getElementById('historyList');
+    const empty = document.getElementById('historyEmpty');
+    if (data.success && data.data.length) {
+        empty.style.display = 'none';
+        list.innerHTML = data.data.map(m => mealCardHTML(m)).join('');
+    } else {
+        list.innerHTML = '';
+        empty.style.display = 'block';
+    }
+}
+
+function mealCardHTML(m) {
+    const img = m.photo_path ? `<img src="/${m.photo_path}" alt="meal">` : '<div style="width:80px;height:80px;background:#edf2f7;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:2rem">🍽️</div>';
+    const time = m.created_at ? new Date(m.created_at).toLocaleString('es-AR', {hour:'2-digit', minute:'2-digit'}) : '';
+    return `
+        <div class="meal-card">
+            ${img}
+            <div class="meal-info">
+                <h4>${esc(m.description || 'Comida')}</h4>
+                <p>🕐 ${time}</p>
+                <div class="meal-macros">
+                    <span>🔥 ${Math.round(m.total_calories)}kcal</span>
+                    <span>🥩 ${Math.round(m.total_protein)}g prot</span>
+                    <span>🍞 ${Math.round(m.total_carbs)}g carbs</span>
+                    <span>🧈 ${Math.round(m.total_fat)}g grasas</span>
+                </div>
+            </div>
+        </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/*                           CHAT                                 */
+/* ═══════════════════════════════════════════════════════════════ */
+async function sendChat() {
+    if (!currentProfileId) { showAlert('alertGlobal', '⚠️ Seleccioná un perfil primero', 'error'); return; }
+    const input = document.getElementById('chatInput');
+    const msg = input.value.trim();
+    if (!msg) return;
+    input.value = '';
+
+    const now = new Date().toISOString();
+    appendChat('user', msg, now);
+    const typing = document.getElementById('chatTyping');
+    typing.style.display = 'flex';
+    scrollChat();
+
+    try {
+        const res = await fetch('/api/chat', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({profile_id: currentProfileId, message: msg}),
+        });
+        const data = await res.json();
+        typing.style.display = 'none';
+        if (data.success) {
+            appendChat('assistant', data.data.response, new Date().toISOString());
+        } else {
+            appendChat('assistant', '❌ Error: ' + data.error, new Date().toISOString());
+        }
+    } catch (err) {
+        typing.style.display = 'none';
+        appendChat('assistant', '❌ Error de conexión: ' + err.message, new Date().toISOString());
+    }
+}
+
+// Track last rendered date to know when to insert a separator
+let _lastChatDate = '';
+
+function formatDateLabel(isoStr) {
+    const d = new Date(isoStr);
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+
+    const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+    if (sameDay(d, today)) return 'Hoy';
+    if (sameDay(d, yesterday)) return 'Ayer';
+
+    return d.toLocaleDateString('es-AR', {weekday: 'long', day: 'numeric', month: 'long'});
+}
+
+function formatTime(isoStr) {
+    const d = new Date(isoStr);
+    return d.toLocaleTimeString('es-AR', {hour: '2-digit', minute: '2-digit'});
+}
+
+function appendChat(role, content, isoTimestamp) {
+    const container = document.getElementById('chatMessages');
+    const typing = document.getElementById('chatTyping');
+
+    // Insert date separator if date changed
+    if (isoTimestamp) {
+        const dateLabel = formatDateLabel(isoTimestamp);
+        if (dateLabel !== _lastChatDate) {
+            _lastChatDate = dateLabel;
+            const sep = document.createElement('div');
+            sep.className = 'chat-date-separator';
+            sep.textContent = dateLabel;
+            container.insertBefore(sep, typing);
+        }
+    }
+
+    const div = document.createElement('div');
+    div.className = `chat-msg ${role}`;
+
+    // Simple markdown-like rendering for assistant
+    let html = '';
+    if (role === 'assistant') {
+        html = content
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+            .replace(/\n/g, '<br>');
+    } else {
+        html = esc(content);
+    }
+
+    // Add timestamp
+    const timeStr = isoTimestamp ? formatTime(isoTimestamp) : '';
+    if (timeStr) {
+        html += `<span class="msg-time">${timeStr}</span>`;
+    }
+
+    div.innerHTML = html;
+    container.insertBefore(div, typing);
+    scrollChat();
+}
+
+function scrollChat() {
+    const c = document.getElementById('chatMessages');
+    c.scrollTop = c.scrollHeight;
+}
+
+async function loadChatHistory() {
+    if (!currentProfileId) return;
+    const res = await fetch(`/api/chat/${currentProfileId}`);
+    const data = await res.json();
+
+    const container = document.getElementById('chatMessages');
+    const typing = document.getElementById('chatTyping');
+    container.innerHTML = '';
+    container.appendChild(typing);
+    _lastChatDate = '';
+
+    if (data.success && data.data.length) {
+        data.data.forEach(m => appendChat(m.role, m.content, m.created_at));
+    } else {
+        // Show welcome message
+        const welcome = document.createElement('div');
+        welcome.className = 'chat-msg assistant';
+        welcome.innerHTML = '<p>👋 ¡Hola! Soy tu agente de salud nutricional. Preguntame lo que quieras.</p>';
+        container.insertBefore(welcome, typing);
+    }
+    scrollChat();
+}
+
+async function clearChat() {
+    if (!currentProfileId) return;
+    await fetch(`/api/chat/${currentProfileId}`, {method: 'DELETE'});
+    const container = document.getElementById('chatMessages');
+    const typing = document.getElementById('chatTyping');
+    container.innerHTML = '';
+    container.appendChild(typing);
+    _lastChatDate = '';
+    const welcome = document.createElement('div');
+    welcome.className = 'chat-msg assistant';
+    welcome.innerHTML = '<p>👋 Chat limpiado. ¿En qué puedo ayudarte?</p>';
+    container.insertBefore(welcome, typing);
+}
+
+function toggleExamples() {
+    document.getElementById('chatExamples').classList.toggle('hidden');
+}
+
+function useExample(btn) {
+    // Strip leading emoji from the chip text
+    const text = btn.textContent.replace(/^[\s\p{Emoji_Presentation}\p{Extended_Pictographic}]+/u, '').trim();
+    document.getElementById('chatInput').value = text;
+    document.getElementById('chatExamples').classList.add('hidden');
+    document.getElementById('chatInput').focus();
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/*                         UTILITIES                              */
+/* ═══════════════════════════════════════════════════════════════ */
+function showAlert(containerId, msg, type) {
+    const el = document.getElementById(containerId);
+    el.innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+    setTimeout(() => { el.innerHTML = ''; }, 6000);
+}
+
+function esc(s) {
+    if (!s) return '';
+    const m = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'};
+    return s.replace(/[&<>"']/g, c => m[c]);
+}
+</script>
+</body>
+</html>
+

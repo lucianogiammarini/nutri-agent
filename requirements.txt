@@ -1,0 +1,10 @@
+flask==3.1.3
+fastapi
+langchain-core
+langchain-openai
+python-dotenv
+chromadb
+Pillow
+PyPDF2
+requests
+sentence-transformers

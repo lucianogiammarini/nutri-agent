@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>🔍 Búsqueda en Corpus GAPA</h2>
+<p style="color: #666; margin-bottom: 1.5rem;">
+    Realizá consultas en lenguaje natural sobre las Guías Alimentarias para la Población Argentina.
+</p>
+
+<div id="alertContainer"></div>
+
+<!-- Status badge -->
+<div id="statusBadge" style="margin-bottom: 1.5rem;">
+    <span id="statusIndicator" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; background: #edf2f7; color: #666;">
+        ⏳ Verificando base de datos...
+    </span>
+</div>
+
+<!-- Search form -->
+<form id="searchForm">
+    <div class="form-group">
+        <label for="query">💬 ¿Qué querés saber?</label>
+        <div style="position: relative;">
+            <input
+                type="text"
+                id="query"
+                name="query"
+                required
+                placeholder="Ej: ¿Cuánta agua debo tomar por día?"
+                style="padding-right: 50px;"
+                autocomplete="off"
+            >
+            <button
+                type="submit"
+                id="searchBtn"
+                style="position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: #667eea; color: white; border: none; border-radius: 6px; padding: 8px 14px; cursor: pointer; font-size: 1rem; transition: background 0.3s;"
+                title="Buscar"
+            >🔎</button>
+        </div>
+    </div>
+
+    <div class="form-group" style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+        <label for="topK" style="margin-bottom: 0; white-space: nowrap;">📊 Resultados:</label>
+        <input type="range" id="topK" name="top_k" min="1" max="10" value="5"
+               style="flex: 1; min-width: 120px; accent-color: #667eea;">
+        <span id="topKValue" style="background: #667eea; color: white; padding: 4px 12px; border-radius: 15px; font-weight: 600; min-width: 30px; text-align: center;">5</span>
+    </div>
+
+    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+        <button type="button" class="chip" onclick="setQuery('¿Cuánta agua debo tomar por día?')">💧 Agua</button>
+        <button type="button" class="chip" onclick="setQuery('alimentación saludable para niños')">🧒 Niños</button>
+        <button type="button" class="chip" onclick="setQuery('consumo de frutas y verduras')">🥗 Frutas y verduras</button>
+        <button type="button" class="chip" onclick="setQuery('reducir el consumo de sal')">🧂 Sal</button>
+        <button type="button" class="chip" onclick="setQuery('lactancia materna')">🍼 Lactancia</button>
+        <button type="button" class="chip" onclick="setQuery('grasas y aceites recomendados')">🫒 Grasas</button>
+    </div>
+</form>
+
+<!-- Loading -->
+<div id="loadingContainer" class="loading" style="display: none; margin-top: 2rem;">
+    <div class="spinner"></div>
+    <p>Buscando en el corpus...</p>
+</div>
+
+<!-- Results -->
+<div id="resultsContainer" style="display: none; margin-top: 2rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+        <h3 id="resultsTitle" style="color: #667eea; margin: 0;">📄 Resultados</h3>
+        <span id="resultsMeta" style="color: #999; font-size: 0.85rem;"></span>
+    </div>
+    <div id="resultsList" class="user-list">
+        <!-- Results will be loaded here dynamically -->
+    </div>
+</div>
+
+<!-- Empty / Not indexed -->
+<div id="emptyState" style="display: none;">
+    <div class="empty-state">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        <h3>El corpus aún no fue indexado</h3>
+        <p>Ejecutá <code style="background:#edf2f7; padding:2px 8px; border-radius:4px;">python3 index_corpus.py</code> para indexar el archivo.</p>
+    </div>
+</div>
+
+<style>
+    .chip {
+        background: var(--bg, #f8fafc);
+        color: var(--text-secondary, #64748b);
+        border: 1.5px solid var(--border, #e2e8f0);
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 0.82rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        font-weight: 500;
+        font-family: inherit;
+    }
+    .chip:hover {
+        background: var(--primary, #6366f1);
+        color: white;
+        border-color: var(--primary, #6366f1);
+        transform: translateY(-1px);
+    }
+
+    .result-card {
+        background: var(--bg, #f8fafc);
+        padding: 1.25rem 1.4rem;
+        border-radius: 12px;
+        border-left: 3px solid var(--primary-light, #818cf8);
+        transition: transform .15s, box-shadow .15s;
+        margin-bottom: 0.8rem;
+        border: 1px solid var(--border, #e2e8f0);
+        border-left: 3px solid var(--primary-light, #818cf8);
+    }
+    .result-card:hover {
+        transform: translateX(4px);
+        box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+    }
+
+    .score-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 700;
+    }
+    .score-high   { background: #d1fae5; color: #065f46; }
+    .score-medium { background: #fef3c7; color: #92400e; }
+    .score-low    { background: #fee2e2; color: #7f1d1d; }
+
+    .result-text {
+        color: var(--text-secondary, #64748b);
+        line-height: 1.7;
+        margin: 0.6rem 0;
+        font-size: 0.9rem;
+        white-space: pre-line;
+    }
+
+    .result-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .result-index {
+        color: var(--primary, #6366f1);
+        font-weight: 700;
+        font-size: 0.92rem;
+    }
+
+    mark {
+        background: #fef3c7;
+        padding: 0 3px;
+        border-radius: 3px;
+    }
+</style>
+
+<script>
+    const topKSlider = document.getElementById('topK');
+    const topKValue  = document.getElementById('topKValue');
+    topKSlider.addEventListener('input', () => {
+        topKValue.textContent = topKSlider.value;
+    });
+
+    // Quick-fill chips
+    function setQuery(text) {
+        document.getElementById('query').value = text;
+        document.getElementById('query').focus();
+    }
+
+    // Check DB status on load
+    document.addEventListener('DOMContentLoaded', checkStatus);
+
+    async function checkStatus() {
+        const badge = document.getElementById('statusIndicator');
+        try {
+            const res = await fetch('/rag/status');
+            const data = await res.json();
+            if (data.success && data.data.status === 'ready') {
+                badge.style.background = '#c6f6d5';
+                badge.style.color = '#22543d';
+                badge.innerHTML = `✅ Base vectorial lista &mdash; ${data.data.indexed_chunks} chunks indexados`;
+            } else {
+                badge.style.background = '#fed7d7';
+                badge.style.color = '#742a2a';
+                badge.textContent = '⚠️ Corpus no indexado';
+                document.getElementById('emptyState').style.display = 'block';
+            }
+        } catch {
+            badge.style.background = '#fed7d7';
+            badge.style.color = '#742a2a';
+            badge.textContent = '❌ Error de conexión';
+        }
+    }
+
+    // Search
+    document.getElementById('searchForm').addEventListener('submit', async function (e) {
+        e.preventDefault();
+
+        const query = document.getElementById('query').value.trim();
+        if (!query) return;
+
+        const topK = parseInt(topKSlider.value);
+        const loadingEl  = document.getElementById('loadingContainer');
+        const resultsEl  = document.getElementById('resultsContainer');
+        const emptyEl    = document.getElementById('emptyState');
+
+        loadingEl.style.display  = 'block';
+        resultsEl.style.display  = 'none';
+        emptyEl.style.display    = 'none';
+
+        try {
+            const res = await fetch('/rag/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query, top_k: topK })
+            });
+            const data = await res.json();
+            loadingEl.style.display = 'none';
+
+            if (data.success) {
+                renderResults(data.data);
+            } else {
+                showAlert('❌ ' + data.error, 'error');
+            }
+        } catch (err) {
+            loadingEl.style.display = 'none';
+            showAlert('❌ Error de conexión: ' + err.message, 'error');
+        }
+    });
+
+    function renderResults(data) {
+        const container = document.getElementById('resultsContainer');
+        const list      = document.getElementById('resultsList');
+        const title     = document.getElementById('resultsTitle');
+        const meta      = document.getElementById('resultsMeta');
+
+        title.textContent = `📄 ${data.results.length} resultado${data.results.length !== 1 ? 's' : ''} para "${data.query}"`;
+        meta.textContent  = `Top ${data.top_k} de ${data.total_chunks_in_db} chunks`;
+
+        if (data.results.length === 0) {
+            list.innerHTML = `
+                <div class="empty-state" style="padding:2rem">
+                    <h3>Sin resultados</h3>
+                    <p>Intentá con otra consulta o palabras clave diferentes.</p>
+                </div>`;
+            container.style.display = 'block';
+            return;
+        }
+
+        const queryWords = data.query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+
+        list.innerHTML = data.results.map((chunk, i) => {
+            const scoreClass = chunk.score >= 0.6 ? 'score-high' : chunk.score >= 0.4 ? 'score-medium' : 'score-low';
+            const scoreLabel = chunk.score >= 0.6 ? 'Alta' : chunk.score >= 0.4 ? 'Media' : 'Baja';
+            const scorePercent = Math.round((chunk.score || 0) * 100);
+            const highlightedText = highlightWords(escapeHtml(chunk.text), queryWords);
+
+            return `
+                <div class="result-card" style="animation: fadeIn 0.3s ease ${i * 0.08}s both;">
+                    <div class="result-header">
+                        <span class="result-index">#${i + 1} — Chunk ${chunk.chunk_index}</span>
+                        <span class="score-badge ${scoreClass}">
+                            🎯 ${scorePercent}% — Relevancia ${scoreLabel}
+                        </span>
+                    </div>
+                    <div class="result-text">${highlightedText}</div>
+                </div>`;
+        }).join('');
+
+        container.style.display = 'block';
+        container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function highlightWords(text, words) {
+        if (!words.length) return text;
+        const pattern = words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+        return text.replace(new RegExp(`(${pattern})`, 'gi'), '<mark>$1</mark>');
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+        return text.replace(/[&<>"']/g, m => map[m]);
+    }
+
+    function showAlert(message, type) {
+        const el = document.getElementById('alertContainer');
+        const cls = type === 'error' ? 'alert-error' : 'alert-success';
+        el.innerHTML = `<div class="alert ${cls}">${message}</div>`;
+        setTimeout(() => { el.innerHTML = ''; }, 6000);
+    }
+</script>
+{% endblock %}
+
