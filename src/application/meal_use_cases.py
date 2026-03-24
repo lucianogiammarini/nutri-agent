@@ -72,8 +72,10 @@ class AnalyzeMealUseCase:
                 'enriched_with': enriched_with,
             }
         except ValueError as e:
+            logger.warning("[AnalyzeMealUseCase] Validation error: %s", e)
             return {'success': False, 'error': str(e)}
         except Exception as e:
+            logger.exception("[AnalyzeMealUseCase] Unexpected error during meal analysis")
             return {'success': False, 'error': f'Error analyzing meal: {str(e)}'}
 
 

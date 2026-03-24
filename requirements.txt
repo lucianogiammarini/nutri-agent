@@ -8,3 +8,6 @@ Pillow
 PyPDF2
 requests
 sentence-transformers
+mcp
+langchain-mcp-adapters
+mcp-server-sqlite

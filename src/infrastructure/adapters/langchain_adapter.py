@@ -184,9 +184,10 @@ Reglas:
         profile_context: str,
         chat_history: List[Dict[str, str]] = None,
         tool_handlers: Dict[str, Any] = None,
+        mcp_tools: List[Any] = None,
     ) -> str:
         """
-        Chat with tool calling using LangChain's bind_tools.
+        Chat with tool calling using LangChain's bind_tools, now supporting MCP tools.
         """
         t0 = time.time()
 
@@ -196,18 +197,24 @@ experto en nutrición y salud basada en las Guías Alimentarias para la Poblaci�
 PERFIL DEL USUARIO:
 {profile_context}
 
-HERRAMIENTAS DISPONIBLES:
-Tenés acceso a herramientas. Usalas cuando sea necesario:
-- consultar_nutricion: para datos nutricionales
-- buscar_guia_alimentaria: para buscar recomendaciones
-- obtener_resumen_hoy: para ver el consumo del día
-- obtener_historial_comidas: para ver comidas recientes
+HERRAMIENTAS PARA DATOS DINÁMICOS:
+1. buscar_guia_alimentaria: SIEMPRE usala para recomendaciones oficiales de las GAPA.
+2. consultar_nutricion: para buscar información de alimentos específicos en la USDA.
+3. obtener_resumen_hoy / obtener_historial_comidas: de uso EXCLUSIVO para consultas SIMPLES y rápidas (ej: "¿qué comí ayer?"). PROHIBIDO usarlas para promedios, rankings o sumatorias.
 
-REGLAS OBLIGATORIAS:
-1. SIEMPRE usa 'buscar_guia_alimentaria' para preguntas de nutrición general.
-2. Usa 'consultar_nutricion' para alimentos específicos.
-3. Usa 'obtener_resumen_hoy' para el progreso del día.
-4. Usa 'obtener_historial_comidas' para días anteriores.
+HERRAMIENTAS DE ANALÍTICA AVANZADA (MCP SQLite):
+Tienes acceso directo a la base de datos mediante Model Context Protocol (MCP). 
+Usa 'read_query' OBLIGATORIAMENTE para:
+- TODO cálculo matemático (promedios, totales, porcentajes).
+- TODO ranking o filtrado complejo (ej: "las 3 más calóricas").
+- Análisis comparativos entre días, semanas o meses.
+
+REGLAS:
+- Si la pregunta requiere cálculo o agregación (ej: 'cuánto fue mi promedio de...'), PREFIERE usar 'read_query' sobre SQLite para analítica.
+- Siempre intenta 'list_tables' o 'describe_table' si no estás seguro del esquema antes de hacer un SELECT.
+
+ESTRUCTURA DE TABLA 'meals' (REFERENCIA):
+- user_profile_id (int), total_calories, total_protein, total_carbs, total_fat, created_at.
 """
 
         CHAT_TOOLS = [
@@ -256,7 +263,7 @@ REGLAS OBLIGATORIAS:
                 "type": "function",
                 "function": {
                     "name": "obtener_historial_comidas",
-                    "description": "Obtiene historial de comidas recientes.",
+                    "description": "Obtiene una lista simple de las últimas comidas. NO USAR para cálculos, promedios ni análisis estadísticos.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -267,7 +274,8 @@ REGLAS OBLIGATORIAS:
             },
         ]
 
-        llm_with_tools = self.chat_model.bind_tools(CHAT_TOOLS)
+        mcp_tools = mcp_tools or []
+        llm_with_tools = self.chat_model.bind_tools(CHAT_TOOLS + mcp_tools)
 
         messages = [SystemMessage(content=system_prompt)]
 
@@ -280,7 +288,7 @@ REGLAS OBLIGATORIAS:
 
         messages.append(HumanMessage(content=user_message))
 
-        max_rounds = 3
+        max_rounds = 5
         round_count = 0
         tools_used = []
 
@@ -296,7 +304,7 @@ REGLAS OBLIGATORIAS:
                 args = tool_call["args"]
 
                 t_tool = time.time()
-                result_str = self._execute_chat_tool(fn_name, args, tool_handlers or {})
+                result_str = self._execute_chat_tool(fn_name, args, tool_handlers or {}, mcp_tools)
                 logger.info("[chat]   Tool '%s' → %.2fs", fn_name, time.time() - t_tool)
                 tools_used.append(fn_name)
 
@@ -323,7 +331,21 @@ REGLAS OBLIGATORIAS:
         name: str,
         arguments: Dict[str, Any],
         handlers: Dict[str, Any],
+        mcp_tools: List[Any] = None,
     ) -> str:
+        if mcp_tools:
+            for mt in mcp_tools:
+                if mt.name == name:
+                    try:
+                        logger.info("[chat-mcp] Calling MCP Tool: %s with args: %s", name, arguments)
+                        res = mt.invoke(arguments)
+                        if isinstance(res, list) and len(res) > 0 and isinstance(res[0], dict) and 'text' in res[0]:
+                            return str(res[0]['text'])
+                        return str(res)
+                    except Exception as e:
+                        logger.warning("[chat-mcp] Tool '%s' error: %s", name, e)
+                        return json.dumps({"error": str(e)})
+
         handler = handlers.get(name)
         if not handler:
             return json.dumps({"error": f"Tool '{name}' not available"})

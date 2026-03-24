@@ -41,8 +41,14 @@ class DependencyContainer:
     """
 
     def __init__(self, database_path: str = 'database.db', chroma_path: str = 'chroma_db'):
-        self.database_path = database_path
-        self.chroma_path = chroma_path
+        self.base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        
+        self.database_path = os.path.join(self.base_dir, database_path)
+        self.chroma_path = os.path.join(self.base_dir, chroma_path)
+        
+        # RAG Paths
+        self.corpus_path = os.getenv("RAG_CORPUS_PATH", os.path.join(self.base_dir, "data", "corpus", "gapa_clean_corpus.txt"))
+        self.manual_pdf_path = os.path.join(self.base_dir, "data", "corpus", "gapa_manual.pdf")
         self._vector_repository = None
         self._rag_controller = None
         self._profile_repository = None
@@ -53,7 +59,18 @@ class DependencyContainer:
         self._food_api_adapter = None
         self._nutrition_cache = None
         self._nutrition_controller = None
+        self._mcp_sqlite = None
 
+
+    # ── MCP Integrations ────────────────────────────────────────
+
+    @property
+    def mcp_sqlite(self):
+        if self._mcp_sqlite is None:
+            # Import dynamically to avoid loading async loop at top level
+            from src.infrastructure.adapters.mcp_adapter import SyncSQLiteMCP
+            self._mcp_sqlite = SyncSQLiteMCP(self.database_path)
+        return self._mcp_sqlite
 
     # ── RAG / Vector DB ─────────────────────────────────────────
 
@@ -68,7 +85,7 @@ class DependencyContainer:
     @property
     def rag_controller(self) -> RAGController:
         if self._rag_controller is None:
-            text_splitter = TextSplitter(chunk_size=500, chunk_overlap=50)
+            text_splitter = TextSplitter(chunk_size=1000, chunk_overlap=200)
             index_use_case = IndexCorpusUseCase(
                 vector_repository=self.vector_repository,
                 text_splitter=text_splitter,
@@ -79,6 +96,7 @@ class DependencyContainer:
             self._rag_controller = RAGController(
                 index_corpus_use_case=index_use_case,
                 search_corpus_use_case=search_use_case,
+                default_corpus_path=self.corpus_path
             )
         return self._rag_controller
 
@@ -156,6 +174,7 @@ class DependencyContainer:
                     chat_repository=self.chat_repository,
                     chat_adapter=self.chat_adapter,
                     food_api_adapter=self.food_api_adapter,
+                    mcp_sqlite=self.mcp_sqlite,
                 ),
             )
         return self._nutrition_controller

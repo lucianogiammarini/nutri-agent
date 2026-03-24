@@ -73,11 +73,11 @@ No es un simple contador de calorías, sino un agente impulsado por inteligencia
    
    **Desde tu computador:**
    ```
-   http://127.0.0.1:5000/
+   http://127.0.0.1:5005/
    ```
    o
    ```
-   http://localhost:5000/
+   http://localhost:5005/
    ```
 
 3. **Acceder desde otros dispositivos en la misma red (móvil, tablet, etc.)**
@@ -104,25 +104,37 @@ No es un simple contador de calorías, sino un agente impulsado por inteligencia
    
    Abre el navegador y visita:
    ```
-   http://TU_IP_LOCAL:5000/
+   http://TU_IP_LOCAL:5005/
    ```
    
-   Ejemplo: `http://192.168.1.10:5000/`
+   Ejemplo: `http://192.168.1.10:5005/`
 
-   > ⚠️ **Nota de Seguridad:** Asegúrate de que tu firewall permita conexiones en el puerto 5000. Esta configuración solo debe usarse en redes de confianza (tu red doméstica).
+   > ⚠️ **Nota de Seguridad:** Asegúrate de que tu firewall permita conexiones en el puerto 5005. Esta configuración solo debe usarse en redes de confianza (tu red doméstica).
 
 ## 📁 Estructura del Proyecto
 
 ```
-curso5/
+nutri-agent/
 │
 ├── app.py              # Archivo principal de la aplicación Flask
 ├── requirements.txt    # Dependencias del proyecto
-├── README.md          # Este archivo
+├── .env                # Variables de entorno (API Keys)
+│
+├── data/
+│   └── corpus/         # Archivos fuente para el RAG (PDF, TXT)
+│
+├── docs/               # Reportes y documentación técnica
+│
+├── scripts/
+│   └── rag/            # Scripts de mantenimiento e indexación
+│
+├── src/                # Código fuente (Arquitectura Hexagonal)
+│   ├── application/    # Casos de uso (Lógica de negocio)
+│   ├── domain/         # Entidades e Interfaces
+│   └── infrastructure/ # Adaptadores, Repositorios, Web
 │
 ├── static/            # Archivos estáticos (CSS, JS, imágenes)
-│
-└── templates/         # Plantillas HTML (Jinja2)
+└── chroma_db/         # Base de datos vectorial (generada)
 ```
 
 ## 📚 Tecnologías Utilizadas

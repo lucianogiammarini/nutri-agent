@@ -36,6 +36,7 @@ class ChatUseCase:
         chat_repository: IChatRepository,
         chat_adapter: LangChainAdapter,
         food_api_adapter: OpenFoodFactsAdapter,
+        mcp_sqlite=None,
     ):
         self.profile_repo = profile_repository
         self.meal_repo = meal_repository
@@ -43,6 +44,7 @@ class ChatUseCase:
         self.chat_repo = chat_repository
         self.chat_adapter = chat_adapter
         self.food_api = food_api_adapter
+        self.mcp_sqlite = mcp_sqlite
 
     def execute(self, profile_id: int, message: str) -> Dict[str, Any]:
         try:
@@ -82,6 +84,7 @@ class ChatUseCase:
                 profile_context=profile_ctx,
                 chat_history=history,
                 tool_handlers=tool_handlers,
+                mcp_tools=self.mcp_sqlite.tools if self.mcp_sqlite else [],
             )
 
             # 5. Save messages
@@ -133,7 +136,7 @@ class ChatUseCase:
         def buscar_guia_alimentaria(consulta: str) -> Dict:
             """RAG search on the GAPA vector DB."""
             logger.info("[chat-tool] buscar_guia_alimentaria('%s')", consulta[:80])
-            chunks = self.vector_repo.search(consulta, top_k=4)
+            chunks = self.vector_repo.search(consulta, top_k=6)
             if chunks:
                 logger.info("[chat-tool] GAPA: %d fragmentos encontrados", len(chunks))
                 return {

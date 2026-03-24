@@ -2,41 +2,42 @@
 Standalone script to index the GAPA corpus into the vector database.
 
 Usage:
-    python index_corpus.py
-
-This will:
-1. Read gapa_clean_corpus.txt
-2. Split it into chunks
-3. Generate embeddings using sentence-transformers
-4. Store everything in ChromaDB (chroma_db/ directory)
-
-After indexing, you can search using the Flask API:
-    curl -X POST http://localhost:5000/rag/search \
-         -H "Content-Type: application/json" \
-         -d '{"query": "¿Cuánta agua debo tomar por día?", "top_k": 3}'
+    python scripts/rag/index_corpus.py
 """
 
 import os
 import sys
 
+# Correct path to find 'src' from 'scripts/rag/'
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if BASE_DIR not in sys.path:
+    sys.path.append(BASE_DIR)
+
+from dotenv import load_dotenv
+from src.infrastructure.dependency_container import DependencyContainer
 
 def main():
-    corpus_file = "gapa_clean_corpus.txt"
+    load_dotenv()
+    container = DependencyContainer()
+    
+    corpus_file = container.corpus_path
 
     if not os.path.exists(corpus_file):
         print(f"❌ File '{corpus_file}' not found.")
-        print("   Run script.py first to download and process the PDF.")
+        print(f"   Please ensure the corpus file is in {corpus_file}")
         sys.exit(1)
 
     print("=" * 60)
     print("📚 GAPA Corpus Indexer - Vector Database")
+    print(f"   Using: {corpus_file}")
     print("=" * 60)
 
     # Step 1: Split text into chunks
     print("\n📄 Step 1: Splitting text into chunks...")
     from src.infrastructure.adapters.text_splitter import TextSplitter
 
-    splitter = TextSplitter(chunk_size=500, chunk_overlap=50)
+    # Use default settings from container if possible, but here we can customize
+    splitter = TextSplitter(chunk_size=1000, chunk_overlap=200)
     chunks = splitter.split_file(corpus_file)
     print(f"   ✅ Generated {len(chunks)} chunks")
 
@@ -47,17 +48,16 @@ def main():
         print(f"   \"{preview}...\"")
 
     # Step 2: Store in ChromaDB
-    print("\n🗄️  Step 2: Storing chunks in ChromaDB (this may take a moment on first run)...")
-    from src.infrastructure.repositories.chroma_vector_repository import ChromaVectorRepository
-
-    repo = ChromaVectorRepository(persist_directory="chroma_db")
+    print("\n🗄️  Step 2: Storing chunks in ChromaDB...")
+    repo = container.vector_repository
+    
     repo.clear()
     stored = repo.add_chunks(chunks)
     print(f"   ✅ Stored {stored} chunks in vector database")
-    print(f"   📁 Database location: chroma_db/")
+    print(f"   📁 Database location: {container.chroma_path}")
 
     # Step 3: Test with a sample query
-    print("\n🔍 Step 3: Testing with a sample query...")
+    print("\n🔍 Step 4: Testing with a sample query...")
     test_query = "alimentación saludable"
     results = repo.search(test_query, top_k=3)
 
@@ -71,10 +71,6 @@ def main():
     print("\n" + "=" * 60)
     print("✅ Indexing complete!")
     print(f"   Total chunks in DB: {repo.count()}")
-    print("\n💡 You can now search using the Flask API:")
-    print('   curl -X POST http://localhost:5000/rag/search \\')
-    print('        -H "Content-Type: application/json" \\')
-    print('        -d \'{"query": "¿Cuánta agua debo tomar?", "top_k": 3}\'')
     print("=" * 60)
 
 
