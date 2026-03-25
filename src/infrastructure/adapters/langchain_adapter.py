@@ -455,13 +455,19 @@ class LangChainAdapter(ILlmAdapter):
                     if mcp_tool:
                         try:
                             res = mcp_tool.invoke(args)
-                            result_str = json.dumps(res, ensure_ascii=False, default=str)
+                            result_str = json.dumps(
+                                res, ensure_ascii=False, default=str
+                            )
                         except Exception as e:
                             result_str = json.dumps({"error": str(e)})
                     else:
-                        result_str = json.dumps({"error": f"Tool '{fn_name}' not found"})
+                        result_str = json.dumps(
+                            {"error": f"Tool '{fn_name}' not found"}
+                        )
                 else:
-                    result_str = json.dumps({"error": f"Tool '{fn_name}' not available"})
+                    result_str = json.dumps(
+                        {"error": f"Tool '{fn_name}' not available"}
+                    )
                 logger.info("[chat]   Tool '%s' → %.2fs", fn_name, time.time() - t_tool)
                 tools_used.append(fn_name)
 
