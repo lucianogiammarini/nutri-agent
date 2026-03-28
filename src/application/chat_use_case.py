@@ -46,7 +46,9 @@ class ChatUseCase:
         self.food_api = food_api_adapter
         self.mcp_sqlite = mcp_sqlite
 
-    def execute(self, profile_id: int, message: str) -> Dict[str, Any]:
+    def execute(
+        self, profile_id: int, message: str, on_progress: Any = None
+    ) -> Dict[str, Any]:
         try:
             if not message or not message.strip():
                 return {"success": False, "error": "Message cannot be empty"}
@@ -85,6 +87,7 @@ class ChatUseCase:
                 chat_history=history,
                 tool_handlers=tool_handlers,
                 mcp_tools=self.mcp_sqlite.tools if self.mcp_sqlite else [],
+                on_progress=on_progress,
             )
 
             # 5. Save messages

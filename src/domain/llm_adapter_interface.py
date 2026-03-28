@@ -21,6 +21,11 @@ class ILlmAdapter(ABC):
         profile_context: str,
         chat_history: List[Dict[str, str]] = None,
         tool_handlers: Dict[str, Any] = None,
+        on_progress: Any = None,
     ) -> str:
-        """Handles a conversational turn with the LLM, possibly invoking tools."""
+        """Handles a conversational turn with the LLM, possibly invoking tools.
+        
+        Args:
+            on_progress: Optional callback to report progress (e.g. tool selection)
+        """
         pass
