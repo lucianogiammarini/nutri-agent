@@ -653,13 +653,148 @@
 
         .typing {
             display: none;
+            flex-direction: column;
             align-self: flex-start;
-            color: var(--muted);
-            font-style: italic;
-            font-size: .82rem;
-            align-items: center;
-            gap: .4rem;
+            gap: .35rem;
+            max-width: 88%;
         }
+
+        /* ── Thinking / Reasoning Panel ─────────────────── */
+        .thinking-panel {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            box-shadow: var(--shadow-sm);
+            overflow: hidden;
+            font-size: .82rem;
+            min-width: 260px;
+        }
+
+        .thinking-header {
+            display: flex;
+            align-items: center;
+            gap: .5rem;
+            padding: .6rem .9rem;
+            cursor: pointer;
+            user-select: none;
+            border-bottom: 1px solid transparent;
+            transition: background .15s;
+        }
+
+        .thinking-header:hover {
+            background: #f8fafc;
+        }
+
+        .thinking-header.has-steps {
+            border-bottom-color: var(--border);
+        }
+
+        .thinking-header .th-spinner {
+            width: 14px;
+            height: 14px;
+            border: 2px solid #e2e8f0;
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin .7s linear infinite;
+            flex-shrink: 0;
+        }
+
+        .thinking-header .th-check {
+            width: 14px;
+            height: 14px;
+            background: var(--green);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 9px;
+            flex-shrink: 0;
+        }
+
+        .thinking-header .th-label {
+            flex: 1;
+            color: var(--muted);
+            font-weight: 500;
+        }
+
+        .thinking-header .th-toggle {
+            font-size: .7rem;
+            color: var(--muted);
+            opacity: .7;
+            transition: transform .2s;
+        }
+
+        .thinking-header.collapsed .th-toggle {
+            transform: rotate(-90deg);
+        }
+
+        .thinking-steps {
+            display: flex;
+            flex-direction: column;
+            padding: .5rem .9rem .7rem;
+            gap: .3rem;
+            max-height: 280px;
+            overflow-y: auto;
+        }
+
+        .thinking-steps.hidden {
+            display: none;
+        }
+
+        .thinking-step {
+            display: flex;
+            align-items: flex-start;
+            gap: .5rem;
+            padding: .35rem .5rem;
+            border-radius: 8px;
+            animation: stepIn .25s ease both;
+            background: transparent;
+        }
+
+        @keyframes stepIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .step-icon {
+            font-size: .9rem;
+            flex-shrink: 0;
+            line-height: 1.4;
+        }
+
+        .step-body {
+            flex: 1;
+        }
+
+        .step-label {
+            font-weight: 600;
+            color: var(--text);
+            line-height: 1.3;
+        }
+
+        .step-detail {
+            font-size: .75rem;
+            color: var(--muted);
+            margin-top: 1px;
+            font-style: italic;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 280px;
+        }
+
+        .thinking-step.type-thinking  { background: #f8f6ff; }
+        .thinking-step.type-tool_start { background: #fef9ec; }
+        .thinking-step.type-tool_end   { background: #f0fdf4; }
+        .thinking-step.type-synthesizing { background: #f0f4ff; }
+
+        .thinking-step.type-tool_end .step-icon::after {
+            content: ' ✓';
+            font-size: .65rem;
+            color: var(--green);
+        }
+
 
         /* ── Profile form ────────────────────────────── */
         .form-grid {
@@ -1134,7 +1269,14 @@
                                     hoy?"</em></p>
                         </div>
                         <div class="typing" id="chatTyping">
-                            <div class="spinner-sm"></div>&nbsp; Pensando...
+                            <div class="thinking-panel" id="thinkingPanel">
+                                <div class="thinking-header" id="thinkingHeader" onclick="toggleThinking()">
+                                    <div class="th-spinner" id="thSpinner"></div>
+                                    <span class="th-label" id="thLabel">Pensando...</span>
+                                    <span class="th-toggle" id="thToggle" style="display:none">▾</span>
+                                </div>
+                                <div class="thinking-steps hidden" id="thinkingSteps"></div>
+                            </div>
                         </div>
                     </div>
                     <div class="chat-input-row">
@@ -1577,6 +1719,69 @@
         /* ═══════════════════════════════════════════════════════════════ */
         /*                           CHAT                                 */
         /* ═══════════════════════════════════════════════════════════════ */
+
+        // ── Thinking Panel helpers ───────────────────────────────────
+        const STEP_ICONS = {
+            thinking:     '🧠',
+            tool_start:   '🔧',
+            tool_end:     '✅',
+            synthesizing: '✍️',
+        };
+
+        function resetThinkingPanel() {
+            document.getElementById('thinkingSteps').innerHTML = '';
+            document.getElementById('thinkingSteps').classList.add('hidden');
+            document.getElementById('thLabel').textContent = 'Pensando...';
+            const header = document.getElementById('thinkingHeader');
+            header.classList.remove('has-steps', 'collapsed');
+            // restore spinner
+            const spinner = document.getElementById('thSpinner');
+            spinner.className = 'th-spinner';
+            document.getElementById('thToggle').style.display = 'none';
+        }
+
+        function addThinkingStep(stepType, label, detail) {
+            const steps = document.getElementById('thinkingSteps');
+            steps.classList.remove('hidden');
+            document.getElementById('thinkingHeader').classList.add('has-steps');
+            document.getElementById('thToggle').style.display = '';
+
+            const icon = STEP_ICONS[stepType] || '💬';
+            const step = document.createElement('div');
+            step.className = `thinking-step type-${stepType}`;
+            step.innerHTML = `
+                <span class="step-icon">${icon}</span>
+                <div class="step-body">
+                    <div class="step-label">${esc(label)}</div>
+                    ${detail ? `<div class="step-detail">${esc(String(detail).substring(0, 80))}</div>` : ''}
+                </div>`;
+            steps.appendChild(step);
+            steps.scrollTop = steps.scrollHeight;
+
+            // Update header label
+            document.getElementById('thLabel').textContent = label;
+            scrollChat();
+        }
+
+        function markThinkingDone() {
+            const spinner = document.getElementById('thSpinner');
+            spinner.className = 'th-check';
+            spinner.textContent = '✓';
+            document.getElementById('thLabel').textContent = 'Razonamiento completado';
+            // Auto-collapse after a short delay
+            setTimeout(() => {
+                document.getElementById('thinkingHeader').classList.add('collapsed');
+                document.getElementById('thinkingSteps').classList.add('hidden');
+            }, 800);
+        }
+
+        function toggleThinking() {
+            const header = document.getElementById('thinkingHeader');
+            const steps = document.getElementById('thinkingSteps');
+            header.classList.toggle('collapsed');
+            steps.classList.toggle('hidden');
+        }
+
         async function sendChat() {
             if (!currentProfileId) { showAlert('alertGlobal', '⚠️ Seleccioná un perfil primero', 'error'); return; }
             const input = document.getElementById('chatInput');
@@ -1586,22 +1791,58 @@
 
             const now = new Date().toISOString();
             appendChat('user', msg, now);
+            
             const typing = document.getElementById('chatTyping');
+            resetThinkingPanel();
             typing.style.display = 'flex';
             scrollChat();
 
             try {
-                const res = await fetch('/api/chat', {
+                const response = await fetch('/api/chat/stream', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ profile_id: currentProfileId, message: msg }),
                 });
-                const data = await res.json();
-                typing.style.display = 'none';
-                if (data.success) {
-                    appendChat('assistant', data.data.response, new Date().toISOString());
-                } else {
-                    appendChat('assistant', '❌ Error: ' + data.error, new Date().toISOString());
+
+                if (!response.ok) throw new Error('Error en la respuesta del servidor');
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n\n');
+                    buffer = lines.pop();
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.substring(6));
+                                if (data.type === 'step') {
+                                    // New structured step event
+                                    addThinkingStep(data.step_type || 'thinking', data.label || data.text || '', data.detail || '');
+                                } else if (data.type === 'progress') {
+                                    // Legacy plain-text progress
+                                    addThinkingStep('thinking', data.text || '', '');
+                                } else if (data.type === 'final') {
+                                    markThinkingDone();
+                                    setTimeout(() => {
+                                        typing.style.display = 'none';
+                                        appendChat('assistant', data.text, new Date().toISOString());
+                                    }, 900);
+                                } else if (data.type === 'error') {
+                                    typing.style.display = 'none';
+                                    appendChat('assistant', '❌ Error: ' + data.text, new Date().toISOString());
+                                }
+                            } catch (e) {
+                                console.error('Error parseando SSE:', e, line);
+                            }
+                        }
+                    }
                 }
             } catch (err) {
                 typing.style.display = 'none';

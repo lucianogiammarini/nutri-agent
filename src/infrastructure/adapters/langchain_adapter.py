@@ -415,6 +415,7 @@ class LangChainAdapter(ILlmAdapter):
         chat_history: List[Dict[str, str]] = None,
         tool_handlers: Dict[str, Any] = None,
         mcp_tools: Optional[List[Any]] = None,
+        on_progress: Any = None,
     ) -> str:
         """
         Chat with tool calling using LangChain's bind_tools.
@@ -435,6 +436,10 @@ class LangChainAdapter(ILlmAdapter):
         tools_used = []
 
         logger.info("[chat] Enviando mensaje: '%s'", user_message[:80])
+
+        if on_progress:
+            on_progress({"type": "thinking", "label": "Analizando tu pregunta...", "detail": ""})
+
         response_msg = llm_with_tools.invoke(messages)
 
         while response_msg.tool_calls and round_count < max_rounds:
@@ -444,6 +449,9 @@ class LangChainAdapter(ILlmAdapter):
             for tool_call in response_msg.tool_calls:
                 fn_name = tool_call["name"]
                 args = tool_call["args"]
+
+                if on_progress:
+                    on_progress({"type": "tool_start", "label": f"Consultando: {fn_name}", "detail": list(args.values())[0] if args else ""})
 
                 t_tool = time.time()
                 # 1. Try internal handlers
@@ -468,7 +476,12 @@ class LangChainAdapter(ILlmAdapter):
                     result_str = json.dumps(
                         {"error": f"Tool '{fn_name}' not available"}
                     )
+                
                 logger.info("[chat]   Tool '%s' → %.2fs", fn_name, time.time() - t_tool)
+
+                if on_progress:
+                    on_progress({"type": "tool_end", "label": f"Listo: {fn_name}", "detail": f"{time.time() - t_tool:.1f}s"})
+
                 tools_used.append(fn_name)
 
                 messages.append(
@@ -478,6 +491,8 @@ class LangChainAdapter(ILlmAdapter):
                 )
 
             # Re-invoke the LLM with the new messages containing the execution results
+            if on_progress:
+                on_progress({"type": "synthesizing", "label": "Sintetizando respuesta...", "detail": ""})
             response_msg = llm_with_tools.invoke(messages)
 
         logger.info(

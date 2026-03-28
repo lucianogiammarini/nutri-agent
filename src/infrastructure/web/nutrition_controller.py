@@ -10,7 +10,8 @@ Handles API endpoints and web views for:
 
 import os
 import uuid
-from flask import request, jsonify, render_template
+import json
+from flask import request, jsonify, render_template, Response, stream_with_context
 from src.application.profile_use_cases import (
     CreateProfileUseCase, GetProfilesUseCase,
     GetProfileByIdUseCase, UpdateProfileUseCase,
@@ -142,6 +143,62 @@ class NutritionController:
 
         result = self.chat_uc.execute(int(profile_id), message)
         return jsonify(result), 200 if result['success'] else 400
+
+    def api_chat_stream(self):
+        """
+        POST /api/chat/stream {profile_id, message}
+        Returns a Server-Sent Events (SSE) stream with progress updates and final response.
+        """
+        import queue
+        import threading
+
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No data'}), 400
+
+        profile_id = data.get('profile_id')
+        message = data.get('message', '')
+
+        if not profile_id:
+            return jsonify({'success': False, 'error': 'profile_id required'}), 400
+
+        q = queue.Queue()
+
+        def on_progress(event):
+            # Accept both plain strings (legacy) and structured dicts (new)
+            if isinstance(event, dict):
+                step_type = event.get('type', 'thinking')
+                q.put({
+                    'type': 'step',
+                    'step_type': step_type,
+                    'label': event.get('label', ''),
+                    'detail': str(event.get('detail', '')),
+                })
+            else:
+                q.put({'type': 'step', 'step_type': 'thinking', 'label': str(event), 'detail': ''})
+
+        def run_use_case():
+            try:
+                result = self.chat_uc.execute(int(profile_id), message, on_progress=on_progress)
+                if result['success']:
+                    q.put({'type': 'final', 'text': result['data']['response']})
+                else:
+                    q.put({'type': 'error', 'text': result.get('error', 'Chat error')})
+            except Exception as e:
+                q.put({'type': 'error', 'text': str(e)})
+            finally:
+                q.put(None)  # Signal end of stream
+
+        threading.Thread(target=run_use_case).start()
+
+        def generate():
+            while True:
+                item = q.get()
+                if item is None:
+                    break
+                yield f"data: {json.dumps(item)}\n\n"
+
+        return Response(stream_with_context(generate()), mimetype='text/event-stream')
 
     def api_chat_history(self, profile_id: int):
         """GET /api/chat/<profile_id>"""
