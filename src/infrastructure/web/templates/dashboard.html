@@ -121,19 +121,18 @@
                 <div class="grid grid-2">
                     <div id="meal-left-col">
                         <div class="card" style="padding:0;overflow:hidden;margin-bottom:1.5rem;">
-                            <div
-                                style="padding:1rem 1.2rem;background:linear-gradient(135deg,var(--primary),var(--secondary));color:#fff;display:flex;justify-content:space-between;align-items:center;border-radius:var(--radius) var(--radius) 0 0;">
-                                <div style="display:flex; flex-direction:column;">
-                                    <h3 style="color:#fff;margin:0;font-size:.95rem;">📸 Análisis de Comida</h3>
-                                    <div id="visionModelStatusIndicator" style="font-size:0.7rem; opacity:0.9; margin-top:2px;">Cargando modelo...</div>
-                                </div>
-                                <div style="display:flex;gap:.4rem; align-items:center;">
-                                    <select id="visionModelSelector" onchange="changeModel('vision')" style="background:rgba(255,255,255,0.1); color:#fff; border:1px solid rgba(255,255,255,0.2); border-radius:4px; font-size:0.75rem; padding:2px 4px; cursor:pointer; outline:none;">
-                                        <option value="gemini-3-flash-preview">Gemini 3 Flash</option>
-                                        <option value="gpt-4o">GPT-4o</option>
-                                    </select>
-                                </div>
+                        <div class="panel-header">
+                            <div class="ph-left">
+                                <h3>📸 Análisis de Comida</h3>
+                                <div id="visionModelStatusIndicator" class="ph-status">Cargando modelo...</div>
                             </div>
+                            <div class="ph-actions">
+                                <select id="visionModelSelector" class="ph-select" onchange="changeModel('vision')">
+                                    <option value="gemini-3-flash-preview">Gemini 3 Flash</option>
+                                    <option value="gpt-4o">GPT-4o</option>
+                                </select>
+                            </div>
+                        </div>
                         </div>
                         <div class="card" id="mealUploadCard">
                         <h3>📸 Subir / Capturar Foto</h3>
@@ -249,23 +248,22 @@
             </div>
             <div id="chat-content" class="hidden">
                 <div class="card" style="padding:0;overflow:hidden;">
-                    <div
-                        style="padding:1rem 1.2rem;background:linear-gradient(135deg,var(--primary),var(--secondary));color:#fff;display:flex;justify-content:space-between;align-items:center;border-radius:var(--radius) var(--radius) 0 0;">
-                        <div style="display:flex; flex-direction:column;">
-                            <h3 style="color:#fff;margin:0;font-size:.95rem;">💬 Agente Nutricional</h3>
-                            <div id="modelStatusIndicator" style="font-size:0.7rem; opacity:0.9; margin-top:2px;">Cargando modelo...</div>
+                    <div class="panel-header">
+                        <div class="ph-left">
+                            <h3>💬 Agente Nutricional</h3>
+                            <div id="modelStatusIndicator" class="ph-status">Cargando modelo...</div>
                         </div>
-                        <div style="display:flex;gap:.4rem; align-items:center;">
-                            <select id="modelSelector" onchange="changeModel()" style="background:rgba(255,255,255,0.1); color:#fff; border:1px solid rgba(255,255,255,0.2); border-radius:4px; font-size:0.75rem; padding:2px 4px; cursor:pointer; outline:none;">
+                        <div class="ph-actions">
+                            <select id="modelSelector" class="ph-select" onchange="changeModel()">
                                 <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro Preview</option>
                                 <option value="gpt-4o-mini">GPT-4o Mini</option>
                             </select>
-                            <button class="btn btn-sm"
-                                style="background:rgba(255,255,255,.18);color:#fff;font-size:.75rem;"
-                                onclick="toggleExamples()">💡 Ejemplos</button>
-                            <button class="btn btn-sm"
-                                style="background:rgba(255,255,255,.18);color:#fff;font-size:.75rem;"
-                                onclick="clearChat()">🗑️ Limpiar</button>
+                            <button class="ph-btn" onclick="toggleExamples()" title="💡 Ejemplos">
+                                💡 <span class="hide-mobile">Ejemplos</span>
+                            </button>
+                            <button class="ph-btn" onclick="clearChat()" title="🗑️ Limpiar">
+                                🗑️ <span class="hide-mobile">Limpiar</span>
+                            </button>
                         </div>
                     </div>
                     <div id="chatExamples" class="chat-examples hidden">
