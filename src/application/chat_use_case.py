@@ -130,15 +130,15 @@ class ChatUseCase:
             result = self.food_api.query_nutrition(food_name_en, quantity, unit)
             if result:
                 return {
-                    "alimento": result["name"],
-                    "cantidad": f"{result['quantity']}{result['unit']}",
-                    "calorias": result["calories"],
-                    "proteinas": result["protein"],
-                    "carbohidratos": result["carbs"],
-                    "grasas": result["fat"],
-                    "fibra": result.get("fiber", 0),
-                    "azucar": result.get("sugar", 0),
-                    "fuente": "USDA FoodData Central",
+                    "food": result["name"],
+                    "quantity": f"{result['quantity']}{result['unit']}",
+                    "calories": result["calories"],
+                    "protein": result["protein"],
+                    "carbs": result["carbs"],
+                    "fat": result["fat"],
+                    "fiber": result.get("fiber", 0),
+                    "sugar": result.get("sugar", 0),
+                    "source": "USDA FoodData Central",
                 }
             return {
                 "error": f"No se encontró información nutricional para '{food_name_en}' en USDA"
@@ -148,25 +148,28 @@ class ChatUseCase:
             """RAG search on the GAPA vector DB."""
             logger.info("[chat-tool] search_food_guide('%s')", consulta[:80])
             chunks = self.vector_repo.search(consulta, top_k=4)
-            if chunks:
-                logger.info("[chat-tool] GAPA: %d fragmentos encontrados", len(chunks))
+            # Filter out low-relevance chunks to avoid hallucination
+            MIN_SCORE = 0.3
+            relevant = [c for c in chunks if hasattr(c, "score") and c.score and c.score >= MIN_SCORE]
+            if relevant:
+                logger.info("[chat-tool] GAPA: %d/%d fragmentos relevantes (score >= %.1f)",
+                            len(relevant), len(chunks), MIN_SCORE)
                 return {
-                    "resultados": len(chunks),
-                    "fragmentos": [
+                    "results": len(relevant),
+                    "fragments": [
                         {
-                            "texto": c.text,
-                            "relevancia": round(c.score, 3)
-                            if hasattr(c, "score")
-                            else None,
+                            "text": c.text,
+                            "relevance": round(c.score, 3),
                         }
-                        for c in chunks
+                        for c in relevant
                     ],
-                    "fuente": "Guías Alimentarias para la Población Argentina (GAPA)",
+                    "source": "Guías Alimentarias para la Población Argentina (GAPA)",
                 }
-            logger.info("[chat-tool] GAPA: sin resultados para '%s'", consulta[:50])
+            logger.info("[chat-tool] GAPA: sin resultados relevantes para '%s' (mejor score: %.3f)",
+                        consulta[:50], chunks[0].score if chunks and chunks[0].score else 0)
             return {
-                "resultados": 0,
-                "mensaje": "No se encontró información relevante en las GAPA",
+                "results": 0,
+                "message": "No se encontró información relevante en las GAPA",
             }
 
         def get_today_summary() -> Dict:
@@ -178,40 +181,40 @@ class ChatUseCase:
             consumed_fat = sum(m.total_fat for m in meals)
 
             return {
-                "comidas_registradas": len(meals),
-                "consumido": {
-                    "calorias": round(consumed_cal, 1),
-                    "proteinas": round(consumed_prot, 1),
-                    "carbohidratos": round(consumed_carbs, 1),
-                    "grasas": round(consumed_fat, 1),
+                "meals_logged": len(meals),
+                "consumed": {
+                    "calories": round(consumed_cal, 1),
+                    "protein": round(consumed_prot, 1),
+                    "carbs": round(consumed_carbs, 1),
+                    "fat": round(consumed_fat, 1),
                 },
-                "metas": {
-                    "calorias": profile.daily_calories,
-                    "proteinas": profile.daily_protein,
-                    "carbohidratos": profile.daily_carbs,
-                    "grasas": profile.daily_fat,
+                "goals": {
+                    "calories": profile.daily_calories,
+                    "protein": profile.daily_protein,
+                    "carbs": profile.daily_carbs,
+                    "fat": profile.daily_fat,
                 },
-                "porcentaje": {
-                    "calorias": round(consumed_cal / profile.daily_calories * 100)
+                "percentage": {
+                    "calories": round(consumed_cal / profile.daily_calories * 100)
                     if profile.daily_calories
                     else 0,
-                    "proteinas": round(consumed_prot / profile.daily_protein * 100)
+                    "protein": round(consumed_prot / profile.daily_protein * 100)
                     if profile.daily_protein
                     else 0,
-                    "carbohidratos": round(consumed_carbs / profile.daily_carbs * 100)
+                    "carbs": round(consumed_carbs / profile.daily_carbs * 100)
                     if profile.daily_carbs
                     else 0,
-                    "grasas": round(consumed_fat / profile.daily_fat * 100)
+                    "fat": round(consumed_fat / profile.daily_fat * 100)
                     if profile.daily_fat
                     else 0,
                 },
-                "comidas": [
+                "meals": [
                     {
-                        "descripcion": m.description,
-                        "calorias": m.total_calories,
-                        "proteinas": m.total_protein,
-                        "carbohidratos": m.total_carbs,
-                        "grasas": m.total_fat,
+                        "description": m.description,
+                        "calories": m.total_calories,
+                        "protein": m.total_protein,
+                        "carbs": m.total_carbs,
+                        "fat": m.total_fat,
                     }
                     for m in meals
                 ],
@@ -222,14 +225,14 @@ class ChatUseCase:
             meals = self.meal_repo.get_by_profile(profile_id, limit=min(limite, 20))
             return {
                 "total": len(meals),
-                "comidas": [
+                "meals": [
                     {
-                        "descripcion": m.description,
-                        "calorias": m.total_calories,
-                        "proteinas": m.total_protein,
-                        "carbohidratos": m.total_carbs,
-                        "grasas": m.total_fat,
-                        "fecha": m.created_at.isoformat() if m.created_at else None,
+                        "description": m.description,
+                        "calories": m.total_calories,
+                        "protein": m.total_protein,
+                        "carbs": m.total_carbs,
+                        "fat": m.total_fat,
+                        "date": m.created_at.isoformat() if m.created_at else None,
                     }
                     for m in meals
                 ],
