@@ -10,6 +10,7 @@ from src.domain.meal import Meal
 from src.domain.meal_repository_interface import IMealRepository
 from src.domain.profile_repository_interface import IProfileRepository
 from src.domain.llm_adapter_interface import ILlmAdapter
+from src.infrastructure.adapters.error_mapper import map_llm_error
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +89,7 @@ class AnalyzeMealUseCase:
             logger.exception(
                 "[AnalyzeMealUseCase] Unexpected error during meal analysis"
             )
-            return {"success": False, "error": f"Error analyzing meal: {str(e)}"}
+            return {"success": False, "error": map_llm_error(e, context_prefix="Error analyzing meal")}
 
 
 class GetMealHistoryUseCase:

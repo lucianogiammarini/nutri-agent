@@ -18,6 +18,7 @@ from src.domain.meal_repository_interface import IMealRepository
 from src.domain.vector_repository_interface import IVectorRepository
 from src.domain.llm_adapter_interface import ILlmAdapter
 from src.domain.food_api_interface import IFoodAPI
+from src.infrastructure.adapters.error_mapper import map_llm_error
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +116,7 @@ class ChatUseCase:
         except ValueError as e:
             return {"success": False, "error": str(e)}
         except Exception as e:
-            return {"success": False, "error": f"Chat error: {str(e)}"}
+            return {"success": False, "error": map_llm_error(e, context_prefix="Chat error")}
 
     def _build_tool_handlers(self, profile_id: int, profile) -> Dict[str, Any]:
         """
