@@ -119,7 +119,8 @@
             </div>
             <div id="meal-content" class="hidden">
                 <div class="grid grid-2">
-                    <div class="card">
+                    <div id="meal-left-col">
+                        <div class="card" id="mealUploadCard">
                         <h3>📸 Subir / Capturar Foto</h3>
                         <div class="upload-area" id="uploadArea">
                             <input type="file" id="imageInput" accept="image/*" capture="environment">
@@ -146,18 +147,19 @@
                                 🔬 Analizar Comida
                             </button>
                         </div>
-                        <div id="analyzeLoading" class="hidden" style="margin-top:1.5rem">
-                            <div class="thinking-panel" id="mealThinkingPanel">
-                                <div class="thinking-header" id="mealThinkingHeader" onclick="toggleMealThinking()"
-                                    role="button" tabindex="0" onkeydown="if(event.key==='Enter')toggleMealThinking()">
-                                    <div class="th-spinner" id="mealThSpinner"></div>
-                                    <span class="th-label" id="mealThLabel">Analizando comida...</span>
-                                    <span class="th-toggle" id="mealThToggle" style="display:none">▾</span>
-                                </div>
-                                <div class="thinking-steps hidden" id="mealThinkingSteps"></div>
+                    </div>
+                    <div id="analyzeLoading" class="hidden" style="margin-top:1rem">
+                        <div class="thinking-panel" id="mealThinkingPanel">
+                            <div class="thinking-header" id="mealThinkingHeader" onclick="toggleMealThinking()"
+                                role="button" tabindex="0" onkeydown="if(event.key==='Enter')toggleMealThinking()">
+                                <div class="th-spinner" id="mealThSpinner"></div>
+                                <span class="th-label" id="mealThLabel">Analizando comida...</span>
+                                <span class="th-toggle" id="mealThToggle" style="display:none">▾</span>
                             </div>
+                            <div class="thinking-steps hidden" id="mealThinkingSteps"></div>
                         </div>
                     </div>
+                </div>
                     <div class="card">
                         <h3>📋 Resultado del Análisis</h3>
                         <div id="analysisEmpty" class="empty-state" style="padding:2rem">

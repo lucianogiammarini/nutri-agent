@@ -259,6 +259,7 @@ async function analyzeMeal() {
     if (!selectedFile) return;
 
     document.getElementById('analyzeBtn').classList.add('hidden');
+    document.getElementById('mealUploadCard').classList.add('hidden');
     document.getElementById('analyzeLoading').classList.remove('hidden');
     document.getElementById('analysisResult').style.display = 'none';
     document.getElementById('analysisEmpty').style.display = 'none';
@@ -301,6 +302,7 @@ async function analyzeMeal() {
                             markMealThinkingDone();
                             setTimeout(() => {
                                 document.getElementById('analyzeLoading').classList.add('hidden');
+                                document.getElementById('mealUploadCard').classList.remove('hidden');
                                 showAnalysisResult(data.data);
                                 loadDashboard();
                                 document.getElementById('mealComment').value = '';
@@ -308,6 +310,7 @@ async function analyzeMeal() {
                             }, 800);
                         } else if (data.type === 'error') {
                             document.getElementById('analyzeLoading').classList.add('hidden');
+                            document.getElementById('mealUploadCard').classList.remove('hidden');
                             document.getElementById('analyzeBtn').classList.remove('hidden');
                             showAlert('alertGlobal', '❌ ' + data.text, 'error');
                         }
@@ -319,6 +322,7 @@ async function analyzeMeal() {
         }
     } catch (err) {
         document.getElementById('analyzeLoading').classList.add('hidden');
+        document.getElementById('mealUploadCard').classList.remove('hidden');
         document.getElementById('analyzeBtn').classList.remove('hidden');
         showAlert('alertGlobal', '❌ Error de conexión: ' + err.message, 'error');
     }
