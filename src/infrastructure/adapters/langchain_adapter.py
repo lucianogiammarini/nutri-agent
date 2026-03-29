@@ -20,53 +20,83 @@ logger = logging.getLogger(__name__)
 # ── Prompts and Definitions ────────────────────────────────────────
 
 VISION_SYSTEM_PROMPT = """Eres un nutricionista experto en visión artificial y lector de etiquetas (OCR).
-Analiza la imagen enviada. Detecta si es un PLATO DE COMIDA o una TABLA NUTRICIONAL (etiqueta).
+Analiza la imagen enviada. Clasificala en una de estas categorías:
+1. PLATO DE COMIDA (meal)
+2. TABLA/ETIQUETA NUTRICIONAL (label)
+3. IMAGEN NO ALIMENTARIA (not_food)
 
-Si es un PLATO DE COMIDA (meal):
-Devuelve ÚNICAMENTE un JSON estructurado así (sin markdown, sin extras):
+═══ Si es un PLATO DE COMIDA (meal) ═══
+Devuelve ÚNICAMENTE este JSON (sin markdown, sin extras):
 {
   "image_type": "meal",
-  "reasoning": "Breve explicación de cómo estimaste cada porción (ej: 'Presa de pollo que ocupa 1/4 del plato, aparenta ser muslo mediano...')",
+  "reasoning": "Explicación de cómo estimaste cada porción",
   "description": "Descripción breve del plato en español",
   "food_items": [
     {
-      "name": "nombre del alimento en español",
-      "name_en": "nombre traducido al INGLÉS para búsqueda en base de datos USDA (ej: 'roasted chicken thigh'). IMPORTANTE: incluir método de cocción (roasted, boiled, fried, steamed, baked, grilled, raw).",
+      "name": "nombre en español",
+      "name_en": "nombre en inglés con método de cocción",
       "quantity": 150,
       "unit": "g"
     }
   ],
   "nutrition_facts": null
 }
-REGLAS PARA PLATO:
-- Identifica los alimentos y estima cantidad/unidad. NO calcules calorías ni macronutrientes manualmente.
-- En "name_en" SIEMPRE incluí el método de cocción (roasted, boiled, fried, baked, steamed, grilled). Si no es evidente, asumir "cooked".
-- Sé consistente: ante la misma imagen, siempre debés devolver la misma descomposición de alimentos y porciones.
 
-Si es una TABLA NUTRICIONAL (label):
-Extrae los valores matemáticamente exactos mediante OCR. Si los valores son por porción, extrae los valores POR PORCIÓN (o regla de tres si la cantidad consumida es diferente a una porción y el usuario lo aclaró).
+REGLAS PARA PLATO:
+- Identifica cada alimento visible y estimá su peso en gramos. NO calcules calorías.
+- En "name_en" SIEMPRE incluí el método de cocción para USDA (roasted, boiled, fried, baked, steamed, grilled). Si no es evidente, usá "cooked".
+  Ejemplos: "roasted chicken thigh", "boiled potato", "steamed broccoli", "fried egg".
+- ALIMENTOS COMPUESTOS (guisos, empanadas, tartas, salsas): descomponé en ingredientes individuales.
+  Ej: una empanada → "empanada dough" + "ground beef" + "onion" + "egg".
+- Sé consistente: ante la misma imagen, siempre debés devolver la misma descomposición.
+
+═══ Si es una TABLA/ETIQUETA NUTRICIONAL (label) ═══
+Extrae los valores EXACTOS mediante OCR. Usá los valores POR PORCIÓN.
 Devuelve ÚNICAMENTE este JSON (sin markdown, sin extras):
 {
   "image_type": "label",
-  "reasoning": "Breve explicación de la lectura OCR",
+  "reasoning": "Explicación de la lectura OCR y qué valores extraíste",
   "description": "Tabla Nutricional de [Producto]",
   "food_items": [],
+  "serving_size": "30g",
+  "servings_per_container": 10,
   "nutrition_facts": {
     "calories": 250.0,
     "protein": 5.0,
     "carbs": 30.0,
-    "fat": 10.0
+    "fat": 10.0,
+    "fiber": 2.0,
+    "sugar": 8.0,
+    "sodium": 150.0,
+    "saturated_fat": 3.0
   }
 }
 
-REGLAS GENERALES:
-- Usa el comentario del usuario (si hay) para ajustar las porciones leídas o estimadas.
+REGLAS PARA ETIQUETA:
+- Extraé TODOS los valores visibles (calorías, proteínas, carbs, grasas, fibra, azúcares, sodio, grasas saturadas).
+- Si un valor no está en la etiqueta, omitilo del JSON (no pongas 0).
+- "serving_size" es el tamaño de porción (ej: "30g", "200ml", "1 unidad (45g)").
+- "servings_per_container" es la cantidad de porciones por envase (si está visible).
+- Si el usuario aclara cuántas porciones consumió, multiplicá los valores.
+
+═══ Si NO es una imagen de comida ni etiqueta (not_food) ═══
+Devuelve:
+{
+  "image_type": "not_food",
+  "reasoning": "Breve explicación de qué se ve en la imagen",
+  "description": "No se detectó un alimento ni una etiqueta nutricional",
+  "food_items": [],
+  "nutrition_facts": null
+}
+
+═══ REGLAS GENERALES ═══
+- Usá el comentario del usuario (si hay) para ajustar porciones o interpretar la imagen.
 - ESTRICTO: Devuelve ÚNICAMENTE JSON válido, nada antes ni después.
-- El campo "reasoning" es OBLIGATORIO.
+- El campo "reasoning" es OBLIGATORIO en todos los casos.
 """
 
 CHAT_SYSTEM_PROMPT_TEMPLATE = """Eres un agente de intervención metabólica de precisión, 
-experto en nutrición y salud. Respondés SIEMPRE en español argentino.
+experto en nutrición y salud. Respondés SIEMPRE en español.
 
 PERFIL DEL USUARIO:
 {profile_context}
@@ -256,19 +286,26 @@ class LangChainAdapter(ILlmAdapter):
         """Formats the result when the image is a Nutrition Label (OCR)."""
         facts = vision_result.get("nutrition_facts") or {}
         desc = vision_result.get("description", "Producto Envasado (OCR)")
+        serving = vision_result.get("serving_size", "")
+        servings_count = vision_result.get("servings_per_container")
 
         item = {
             "name": desc,
             "name_en": "Packaged Product",
-            "portion": "Etiqueta OCR",
+            "portion": serving or "Etiqueta OCR",
             "estimated_calories": float(facts.get("calories", 0) or 0),
             "estimated_protein": float(facts.get("protein", 0) or 0),
             "estimated_carbs": float(facts.get("carbs", 0) or 0),
             "estimated_fat": float(facts.get("fat", 0) or 0),
             "enriched_source": "nutrition_label_ocr",
+            "micronutrients": {
+                k: float(facts[k])
+                for k in ("fiber", "sugar", "sodium", "saturated_fat")
+                if k in facts and facts[k] is not None
+            },
         }
 
-        return {
+        result = {
             "image_type": "label",
             "description": desc,
             "food_items": [item],
@@ -278,6 +315,11 @@ class LangChainAdapter(ILlmAdapter):
             "total_fat": round(item["estimated_fat"], 1),
             "_raw": raw_vision,
         }
+        if serving:
+            result["serving_size"] = serving
+        if servings_count:
+            result["servings_per_container"] = servings_count
+        return result
 
     def _handle_meal_enrichment(
         self, vision_result: Dict[str, Any], raw_vision: str, on_progress: Any = None
@@ -400,7 +442,19 @@ class LangChainAdapter(ILlmAdapter):
 
         image_type = vision_result.get("image_type", "meal")
 
-        if image_type == "label":
+        if image_type == "not_food":
+            logger.info("[analyze] Imagen no alimentaria detectada")
+            return {
+                "image_type": "not_food",
+                "description": vision_result.get("description", "No se detectó un alimento"),
+                "food_items": [],
+                "total_calories": 0,
+                "total_protein": 0,
+                "total_carbs": 0,
+                "total_fat": 0,
+                "_raw": raw_vision,
+            }
+        elif image_type == "label":
             if on_progress:
                 on_progress({"type": "thinking", "label": "Extrayendo datos de la etiqueta nutricional...", "detail": "OCR completado"})
             result = self._handle_label_ocr(vision_result, raw_vision)
