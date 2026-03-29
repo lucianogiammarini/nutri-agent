@@ -116,6 +116,70 @@ class NutritionController:
         result = self.analyze_meal_uc.execute(int(profile_id), filepath, comment=comment)
         return jsonify(result), 200 if result['success'] else 400
 
+    def api_analyze_meal_stream(self):
+        """
+        POST /api/meals/analyze/stream (multipart form)
+        Returns an SSE stream with progress and final analysis result.
+        """
+        import queue
+        import threading
+
+        profile_id = request.form.get('profile_id')
+        if not profile_id:
+            return jsonify({'success': False, 'error': 'profile_id required'}), 400
+
+        file = request.files.get('image')
+        if not file:
+            return jsonify({'success': False, 'error': 'Image file required'}), 400
+
+        comment = request.form.get('comment', '').strip()
+
+        # Save file first
+        ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else 'jpg'
+        filename = f"{uuid.uuid4().hex}.{ext}"
+        filepath = os.path.join(UPLOAD_DIR, filename)
+        file.save(filepath)
+
+        q = queue.Queue()
+        # Immediate signal to thaw the stream and show feedback
+        q.put({'type': 'step', 'step_type': 'thinking', 'label': 'Iniciando análisis...', 'detail': ''})
+
+        def on_progress(event):
+            if isinstance(event, dict):
+                q.put({
+                    'type': 'step',
+                    'step_type': event.get('type', 'thinking'),
+                    'label': event.get('label', ''),
+                    'detail': str(event.get('detail', '')),
+                })
+            else:
+                q.put({'type': 'step', 'step_type': 'thinking', 'label': str(event), 'detail': ''})
+
+        def run_analysis():
+            try:
+                result = self.analyze_meal_uc.execute(
+                    int(profile_id), filepath, comment=comment, on_progress=on_progress
+                )
+                if result['success']:
+                    q.put({'type': 'final', 'data': result})
+                else:
+                    q.put({'type': 'error', 'text': result.get('error', 'Analysis error')})
+            except Exception as e:
+                q.put({'type': 'error', 'text': str(e)})
+            finally:
+                q.put(None)
+
+        threading.Thread(target=run_analysis).start()
+
+        def generate():
+            while True:
+                item = q.get()
+                if item is None:
+                    break
+                yield f"data: {json.dumps(item)}\n\n"
+
+        return Response(stream_with_context(generate()), mimetype='text/event-stream')
+
     def api_meal_history(self, profile_id: int):
         """GET /api/meals/<profile_id>"""
         limit = request.args.get('limit', 20, type=int)

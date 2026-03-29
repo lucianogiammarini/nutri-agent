@@ -9,9 +9,13 @@ class ILlmAdapter(ABC):
 
     @abstractmethod
     def analyze_food_image(
-        self, image_path: str, user_comment: str = ""
+        self, image_path: str, user_comment: str = "", on_progress: Any = None
     ) -> Dict[str, Any]:
-        """Analyzes an image and returns identified food items."""
+        """Analyzes an image and returns identified food items.
+        
+        Args:
+            on_progress: Optional callback to report progress.
+        """
         pass
 
     @abstractmethod

@@ -8,8 +8,10 @@
     <meta name="description" content="NutriAgent: Tu asistente de salud nutricional con IA. Analizá comidas, seguí tus macros y chateá con un agente experto.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧬</text></svg>">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}?v=1.2">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}?v=1.2" defer></script>
 </head>
 
 <body>
@@ -144,9 +146,16 @@
                                 🔬 Analizar Comida
                             </button>
                         </div>
-                        <div id="analyzeLoading" class="hidden" style="text-align:center;padding:2rem">
-                            <div class="spinner-sm"></div>
-                            <p style="margin-top:.5rem;color:var(--muted)">Analizando imagen con IA...</p>
+                        <div id="analyzeLoading" class="hidden" style="margin-top:1.5rem">
+                            <div class="thinking-panel" id="mealThinkingPanel">
+                                <div class="thinking-header" id="mealThinkingHeader" onclick="toggleMealThinking()"
+                                    role="button" tabindex="0" onkeydown="if(event.key==='Enter')toggleMealThinking()">
+                                    <div class="th-spinner" id="mealThSpinner"></div>
+                                    <span class="th-label" id="mealThLabel">Analizando comida...</span>
+                                    <span class="th-toggle" id="mealThToggle" style="display:none">▾</span>
+                                </div>
+                                <div class="thinking-steps hidden" id="mealThinkingSteps"></div>
+                            </div>
                         </div>
                     </div>
                     <div class="card">

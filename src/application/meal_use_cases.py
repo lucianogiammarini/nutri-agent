@@ -33,7 +33,7 @@ class AnalyzeMealUseCase:
         self.vision_adapter = vision_adapter
 
     def execute(
-        self, profile_id: int, image_path: str, comment: str = ""
+        self, profile_id: int, image_path: str, comment: str = "", on_progress: Any = None
     ) -> Dict[str, Any]:
         try:
             profile = self.profile_repo.get_by_id(profile_id)
@@ -42,7 +42,7 @@ class AnalyzeMealUseCase:
 
             # Vision analysis + tool-calling enrichment (handled by LangChain adapter)
             analysis = self.vision_adapter.analyze_food_image(
-                image_path, user_comment=comment
+                image_path, user_comment=comment, on_progress=on_progress
             )
 
             food_items = analysis.get("food_items", [])

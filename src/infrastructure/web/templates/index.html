@@ -1,66 +1,292 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ title }}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+        rel="stylesheet">
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧬</text></svg>">
     <style>
         :root {
-            --primary:#6366f1; --primary-dark:#4f46e5; --secondary:#8b5cf6;
-            --accent:#f59e0b; --green:#10b981; --red:#ef4444;
-            --text:#1e293b; --muted:#64748b; --bg:#f8fafc; --card:#fff; --border:#e2e8f0;
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary: #8b5cf6;
+            --accent: #f59e0b;
+            --green: #10b981;
+            --red: #ef4444;
+            --text: #1e293b;
+            --muted: #64748b;
+            --bg: #f8fafc;
+            --card: #fff;
+            --border: #e2e8f0;
         }
-        *{margin:0;padding:0;box-sizing:border-box;}
-        body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;}
 
-        .hero{background:linear-gradient(135deg,#6366f1 0%,#8b5cf6 50%,#a78bfa 100%);padding:3rem 1.5rem;text-align:center;position:relative;overflow:hidden;}
-        .hero::after{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");}
-        .hero-content{position:relative;z-index:1;max-width:700px;margin:0 auto;}
-        .hero .logo{font-size:3.5rem;margin-bottom:.5rem;}
-        .hero h1{color:#fff;font-size:2.4rem;font-weight:900;letter-spacing:-.03em;margin-bottom:.5rem;}
-        .hero .subtitle{color:rgba(255,255,255,.8);font-size:1.1rem;font-weight:400;line-height:1.6;max-width:550px;margin:0 auto;}
-        .hero .meta{display:inline-flex;gap:1.5rem;margin-top:1.5rem;background:rgba(255,255,255,.12);backdrop-filter:blur(8px);padding:.6rem 1.5rem;border-radius:10px;color:rgba(255,255,255,.9);font-size:.85rem;font-weight:500;}
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-        .main{max-width:880px;margin:-2rem auto 0;padding:0 1.5rem 4rem;position:relative;z-index:2;}
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
 
-        .feature-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;}
-        .feature-card{background:var(--card);border-radius:14px;padding:1.5rem;box-shadow:0 4px 16px rgba(0,0,0,.06);transition:transform .2s,box-shadow .2s;border:1px solid var(--border);display:flex;flex-direction:column;}
-        .feature-card:hover{transform:translateY(-3px);box-shadow:0 8px 30px rgba(0,0,0,.1);}
-        .feature-card.wide{grid-column:1/-1;}
-        .feature-card .fc-icon{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;margin-bottom:.8rem;flex-shrink:0;}
-        .fc-icon.orange{background:#fef3c7;} .fc-icon.blue{background:#dbeafe;} .fc-icon.red{background:#fee2e2;} .fc-icon.green{background:#d1fae5;}
-        .feature-card h3{font-size:1rem;font-weight:700;margin-bottom:.3rem;letter-spacing:-.01em;}
-        .feature-card p{color:var(--muted);font-size:.88rem;line-height:1.55;flex:1;}
-        .feature-card .fc-actions{margin-top:1rem;display:flex;gap:.5rem;flex-wrap:wrap;}
+        .hero {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%);
+            padding: 5rem 1.5rem 6rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
 
-        .btn{display:inline-flex;align-items:center;gap:5px;padding:9px 18px;border:none;border-radius:8px;font-family:inherit;font-size:.82rem;font-weight:600;cursor:pointer;text-decoration:none;transition:transform .15s,box-shadow .15s,background .15s;}
-        .btn:active{transform:scale(.97);}
-        .btn-primary{background:var(--primary);color:#fff;} .btn-primary:hover{background:var(--primary-dark);box-shadow:0 4px 14px rgba(99,102,241,.3);}
-        .btn-accent{background:var(--accent);color:#fff;} .btn-accent:hover{background:#d97706;box-shadow:0 4px 14px rgba(245,158,11,.3);}
-        .btn-success{background:var(--green);color:#fff;} .btn-success:hover{background:#059669;}
-        .btn-red{background:var(--red);color:#fff;} .btn-red:hover{background:#dc2626;}
-        .btn-ghost{background:var(--bg);color:var(--muted);border:1.5px solid var(--border);} .btn-ghost:hover{background:#fff;color:var(--text);}
+        .hero::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        }
 
-        .api-list{display:flex;flex-direction:column;gap:.35rem;margin-top:.5rem;}
-        .api-item{font-family:'SF Mono',SFMono-Regular,Menlo,Consolas,monospace;font-size:.78rem;padding:.4rem .7rem;background:var(--bg);border-radius:6px;color:var(--muted);border:1px solid var(--border);display:flex;gap:.5rem;align-items:center;}
-        .api-item .method{font-weight:700;color:var(--primary);min-width:36px;}
+        .hero-content {
+            position: relative;
+            z-index: 1;
+            max-width: 800px;
+            margin: 0 auto;
+        }
 
-        @media(max-width:640px){.feature-grid{grid-template-columns:1fr;}.hero h1{font-size:1.8rem;}.hero .meta{flex-direction:column;gap:.3rem;}}
+        .hero .logo {
+            font-size: 4.5rem;
+            margin-bottom: .75rem;
+            filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.1));
+        }
+
+        .hero h1 {
+            color: #fff;
+            font-size: 3.2rem;
+            font-weight: 900;
+            letter-spacing: -.04em;
+            margin-bottom: .75rem;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .hero .subtitle {
+            color: rgba(255, 255, 255, .9);
+            font-size: 1.2rem;
+            font-weight: 500;
+            line-height: 1.6;
+            max-width: 600px;
+            margin: 0 auto;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+
+        .main {
+            max-width: 880px;
+            margin: -2rem auto 0;
+            padding: 0 1.5rem 4rem;
+            position: relative;
+            z-index: 2;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .feature-card {
+            background: var(--card);
+            border-radius: 14px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, .06);
+            transition: transform .2s, box-shadow .2s;
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, .1);
+        }
+
+        .feature-card.wide {
+            grid-column: 1/-1;
+        }
+
+        .feature-card .fc-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            margin-bottom: .8rem;
+            flex-shrink: 0;
+        }
+
+        .fc-icon.orange {
+            background: #fef3c7;
+        }
+
+        .fc-icon.blue {
+            background: #dbeafe;
+        }
+
+        .fc-icon.red {
+            background: #fee2e2;
+        }
+
+        .fc-icon.green {
+            background: #d1fae5;
+        }
+
+        .feature-card h3 {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: .3rem;
+            letter-spacing: -.01em;
+        }
+
+        .feature-card p {
+            color: var(--muted);
+            font-size: .88rem;
+            line-height: 1.55;
+            flex: 1;
+        }
+
+        .feature-card .fc-actions {
+            margin-top: 1rem;
+            display: flex;
+            gap: .5rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 9px 18px;
+            border: none;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: .82rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: transform .15s, box-shadow .15s, background .15s;
+        }
+
+        .btn:active {
+            transform: scale(.97);
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            box-shadow: 0 4px 14px rgba(99, 102, 241, .3);
+        }
+
+        .btn-accent {
+            background: var(--accent);
+            color: #fff;
+        }
+
+        .btn-accent:hover {
+            background: #d97706;
+            box-shadow: 0 4px 14px rgba(245, 158, 11, .3);
+        }
+
+        .btn-success {
+            background: var(--green);
+            color: #fff;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
+        .btn-red {
+            background: var(--red);
+            color: #fff;
+        }
+
+        .btn-red:hover {
+            background: #dc2626;
+        }
+
+        .btn-ghost {
+            background: var(--bg);
+            color: var(--muted);
+            border: 1.5px solid var(--border);
+        }
+
+        .btn-ghost:hover {
+            background: #fff;
+            color: var(--text);
+        }
+
+        .api-list {
+            display: flex;
+            flex-direction: column;
+            gap: .35rem;
+            margin-top: .5rem;
+        }
+
+        .api-item {
+            font-family: 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: .78rem;
+            padding: .4rem .7rem;
+            background: var(--bg);
+            border-radius: 6px;
+            color: var(--muted);
+            border: 1px solid var(--border);
+            display: flex;
+            gap: .5rem;
+            align-items: center;
+        }
+
+        .api-item .method {
+            font-weight: 700;
+            color: var(--primary);
+            min-width: 36px;
+        }
+
+        @media(max-width:640px) {
+            .feature-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .hero h1 {
+                font-size: 1.8rem;
+            }
+
+            .hero .meta {
+                flex-direction: column;
+                gap: .3rem;
+            }
+        }
     </style>
 </head>
+
 <body>
     <div class="hero">
         <div class="hero-content">
             <div class="logo">🧬</div>
             <h1>NutriAgent</h1>
             <p class="subtitle">{{ description }}</p>
-            <div class="meta">
-                <span>📦 {{ app_name }}</span>
-                <span>⚡ Flask {{ flask_version }}</span>
-                <span>🎓 {{ course }}</span>
-            </div>
         </div>
     </div>
 
@@ -70,7 +296,8 @@
             <div class="feature-card wide">
                 <div class="fc-icon orange">🥗</div>
                 <h3>Manager de Salud y Nutrición</h3>
-                <p>Dashboard interactivo con análisis de comidas por visión artificial, chat nutricional con RAG sobre las Guías Alimentarias Argentinas, y seguimiento diario de macronutrientes.</p>
+                <p>Dashboard interactivo con análisis de comidas por visión artificial, chat nutricional con RAG sobre
+                    las Guías Alimentarias Argentinas, y seguimiento diario de macronutrientes.</p>
                 <div class="fc-actions">
                     <a href="/" class="btn btn-accent">🥗 Abrir Dashboard</a>
                 </div>
@@ -80,13 +307,16 @@
             <div class="feature-card">
                 <div class="fc-icon red">🔍</div>
                 <h3>Búsqueda Semántica RAG</h3>
-                <p>Consultá las Guías Alimentarias (GAPA) usando lenguaje natural con búsqueda vectorial.</p>
-                <div class="fc-actions">
-                    <a href="/web/rag" class="btn btn-red">🔍 Buscar</a>
-                </div>
+                <p>Consultá de forma inteligente las <strong>Guías Alimentarias para la Población Argentina
+                        (GAPA)</strong>. Nuestro motor RAG utiliza embeddings vectoriales para encontrar respuestas
+                    precisas en el corpus oficial.</p>
                 <div class="api-list">
-                    <div class="api-item"><span class="method">POST</span> /rag/search</div>
-                    <div class="api-item"><span class="method">GET</span> /rag/status</div>
+                    <div class="api-item"><span class="method">POST</span> /rag/search — Consulta vectorial</div>
+                    <div class="api-item"><span class="method">GET</span> /rag/status — Estado del Vector DB</div>
+                </div>
+                <div class="fc-actions" style="margin-top: auto; padding-top: 1rem;">
+                    <a href="/web/rag" class="btn btn-red" style="width: 100%; justify-content: center;">🔍 Probar
+                        Buscador</a>
                 </div>
             </div>
 
@@ -94,17 +324,24 @@
             <!-- Nutrition API -->
             <div class="feature-card wide">
                 <div class="fc-icon green">🔌</div>
-                <h3>REST API — Nutrition</h3>
-                <p>Endpoints JSON para perfiles de salud, análisis de comidas con IA, dashboard de macros y chat RAG.</p>
-                <div class="api-list">
-                    <div class="api-item"><span class="method">POST</span> /api/profiles — Crear perfil de salud</div>
-                    <div class="api-item"><span class="method">POST</span> /api/meals/analyze — Analizar foto con IA (Vision)</div>
-                    <div class="api-item"><span class="method">GET</span> /api/dashboard/&lt;id&gt; — Resumen macros del día</div>
-                    <div class="api-item"><span class="method">POST</span> /api/chat — Chat RAG nutricional</div>
+                <h3>REST API — Precision Nutrition</h3>
+                <p>Documentación de endpoints para la integración de servicios de salud, incluyendo análisis de visión
+                    artificial, gestión de perfiles y agentes de chat nutricional.</p>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.8rem;">
+                    <div class="api-list">
+                        <div class="api-item"><span class="method">POST</span> /api/profiles — Perfiles</div>
+                        <div class="api-item"><span class="method">POST</span> /api/meals/analyze/stream — Vision AI
+                            (Stream)</div>
+                    </div>
+                    <div class="api-list">
+                        <div class="api-item"><span class="method">GET</span> /api/dashboard — Macros</div>
+                        <div class="api-item"><span class="method">POST</span> /api/chat/stream — RAG Agent (Stream)
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </body>
-</html>
 
+</html>

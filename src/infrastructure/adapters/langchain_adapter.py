@@ -154,6 +154,21 @@ class LangChainAdapter(ILlmAdapter):
         """Inject the food API adapter for nutrition lookups."""
         self._food_api = food_api
 
+    def _extract_text_content(self, content: Any) -> str:
+        """Extracts combined text from message content (handles both str and list of parts)."""
+        if isinstance(content, str):
+            return content.strip()
+        if isinstance(content, list):
+            texts = []
+            for item in content:
+                if isinstance(item, str):
+                    texts.append(item)
+                elif isinstance(item, dict) and item.get("type") == "text":
+                    texts.append(item.get("text", ""))
+                # Skip other types like tool_use or image_url in output content if they exist
+            return "".join(texts).strip()
+        return str(content or "").strip()
+
     # ── Vision: Helpers ─────────────────────────────────────
 
     def _encode_image(self, image_path: str) -> tuple[str, str]:
@@ -242,7 +257,7 @@ class LangChainAdapter(ILlmAdapter):
         }
 
     def _handle_meal_enrichment(
-        self, vision_result: Dict[str, Any], raw_vision: str
+        self, vision_result: Dict[str, Any], raw_vision: str, on_progress: Any = None
     ) -> Dict[str, Any]:
         """Enriches the food items directly using USDA if the image is a meal."""
         food_items = vision_result.get("food_items", [])
@@ -261,6 +276,8 @@ class LangChainAdapter(ILlmAdapter):
 
         t3 = time.time()
         if self._food_api:
+            if on_progress:
+                on_progress({"type": "thinking", "label": "Consultando base de datos nutricional USDA...", "detail": f"Analizando {len(food_items)} alimentos"})
             enriched_items = self._food_api.enrich_food_items_parallel(food_items)
         else:
             enriched_items = food_items
@@ -297,7 +314,7 @@ class LangChainAdapter(ILlmAdapter):
     # ── Vision: Analyze food image ──────────────────────────────────
 
     def analyze_food_image(
-        self, image_path: str, user_comment: str = ""
+        self, image_path: str, user_comment: str = "", on_progress: Any = None
     ) -> Dict[str, Any]:
         """
         Two-phase analysis (optimized):
@@ -308,6 +325,8 @@ class LangChainAdapter(ILlmAdapter):
         if user_comment:
             logger.info("[analyze] Comentario del usuario: '%s'", user_comment)
 
+        if on_progress:
+            on_progress({"type": "thinking", "label": "Comprimiendo y codificando imagen...", "detail": ""})
         b64, mime = self._encode_image(image_path)
 
         user_text = "Analiza la siguiente imagen y extrae los datos correspondientes según sea plato o etiqueta:"
@@ -331,12 +350,16 @@ class LangChainAdapter(ILlmAdapter):
             ),
         ]
 
+        if on_progress:
+            on_progress({"type": "thinking", "label": "Analizando imagen con visión artificial...", "detail": "Identificando platos o etiquetas"})
         response = self.chat_model.invoke(messages)
         logger.info("[analyze] Phase 1 — Vision API: %.2fs", time.time() - t1)
 
-        raw_vision = response.content.strip()
+        raw_vision = self._extract_text_content(response.content)
         t2 = time.time()
 
+        if on_progress:
+            on_progress({"type": "thinking", "label": "Extrayendo y procesando información...", "detail": ""})
         vision_result = self._parse_vision_json(raw_vision)
         logger.info("[analyze] Parsing JSON de Vision: %.4fs", time.time() - t2)
 
@@ -355,9 +378,11 @@ class LangChainAdapter(ILlmAdapter):
         image_type = vision_result.get("image_type", "meal")
 
         if image_type == "label":
+            if on_progress:
+                on_progress({"type": "thinking", "label": "Extrayendo datos de la etiqueta nutricional...", "detail": "OCR completado"})
             result = self._handle_label_ocr(vision_result, raw_vision)
         else:
-            result = self._handle_meal_enrichment(vision_result, raw_vision)
+            result = self._handle_meal_enrichment(vision_result, raw_vision, on_progress=on_progress)
 
         logger.info(
             "[analyze] Análisis completo finalizado: %.2fs", time.time() - t_total
@@ -502,18 +527,7 @@ class LangChainAdapter(ILlmAdapter):
             tools_used or "ninguna",
         )
 
-        if isinstance(response_msg.content, list):
-            texts = [
-                item.get("text", "")
-                if isinstance(item, dict) and item.get("type") == "text"
-                else str(item)
-                for item in response_msg.content
-                if (isinstance(item, dict) and item.get("type") == "text")
-                or isinstance(item, str)
-            ]
-            final_text = "".join(texts).strip()
-        else:
-            final_text = str(response_msg.content).strip()
+        final_text = self._extract_text_content(response_msg.content)
 
         if not final_text:
             logger.warning(

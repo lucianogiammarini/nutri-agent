@@ -6,6 +6,13 @@ let donutChart = null;
 let selectedFile = null;
 let cameraStream = null;
 
+const STEP_ICONS = {
+    thinking:     '🧠',
+    tool_start:   '🔧',
+    tool_end:     '✅',
+    synthesizing: '✍️',
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     loadProfiles();
 });
@@ -256,6 +263,8 @@ async function analyzeMeal() {
     document.getElementById('analysisResult').style.display = 'none';
     document.getElementById('analysisEmpty').style.display = 'none';
 
+    resetMealThinkingPanel();
+
     const form = new FormData();
     form.append('profile_id', currentProfileId);
     form.append('image', selectedFile);
@@ -263,25 +272,107 @@ async function analyzeMeal() {
     if (comment) form.append('comment', comment);
 
     try {
-        const res = await fetch('/api/meals/analyze', { method: 'POST', body: form });
-        const data = await res.json();
+        const response = await fetch('/api/meals/analyze/stream', {
+            method: 'POST',
+            body: form
+        });
 
-        document.getElementById('analyzeLoading').classList.add('hidden');
+        if (!response.ok) throw new Error('Error en la respuesta del servidor');
 
-        if (data.success) {
-            showAnalysisResult(data);
-            loadDashboard();
-            document.getElementById('mealComment').value = '';
-            document.getElementById('commentWrapper').classList.add('hidden');
-        } else {
-            showAlert('alertGlobal', '❌ ' + data.error, 'error');
-            document.getElementById('analyzeBtn').classList.remove('hidden');
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n\n');
+            buffer = lines.pop();
+
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    try {
+                        const data = JSON.parse(line.substring(6));
+                        if (data.type === 'step') {
+                            addMealThinkingStep(data.step_type || 'thinking', data.label || '', data.detail || '');
+                        } else if (data.type === 'final') {
+                            markMealThinkingDone();
+                            setTimeout(() => {
+                                document.getElementById('analyzeLoading').classList.add('hidden');
+                                showAnalysisResult(data.data);
+                                loadDashboard();
+                                document.getElementById('mealComment').value = '';
+                                document.getElementById('commentWrapper').classList.add('hidden');
+                            }, 800);
+                        } else if (data.type === 'error') {
+                            document.getElementById('analyzeLoading').classList.add('hidden');
+                            document.getElementById('analyzeBtn').classList.remove('hidden');
+                            showAlert('alertGlobal', '❌ ' + data.text, 'error');
+                        }
+                    } catch (e) {
+                        console.error('Error parseando SSE (meal):', e, line);
+                    }
+                }
+            }
         }
     } catch (err) {
         document.getElementById('analyzeLoading').classList.add('hidden');
         document.getElementById('analyzeBtn').classList.remove('hidden');
         showAlert('alertGlobal', '❌ Error de conexión: ' + err.message, 'error');
     }
+}
+
+function resetMealThinkingPanel() {
+    document.getElementById('mealThinkingSteps').innerHTML = '';
+    document.getElementById('mealThinkingSteps').classList.add('hidden');
+    document.getElementById('mealThLabel').textContent = 'Analizando comida...';
+    const header = document.getElementById('mealThinkingHeader');
+    header.classList.remove('has-steps', 'collapsed');
+    const spinner = document.getElementById('mealThSpinner');
+    spinner.className = 'th-spinner';
+    spinner.textContent = '';
+    document.getElementById('mealThToggle').style.display = 'none';
+}
+
+function addMealThinkingStep(stepType, label, detail) {
+    const steps = document.getElementById('mealThinkingSteps');
+    steps.classList.remove('hidden');
+    document.getElementById('mealThinkingHeader').classList.add('has-steps');
+    document.getElementById('mealThToggle').style.display = '';
+
+    const icon = STEP_ICONS[stepType] || '💬';
+    const step = document.createElement('div');
+    step.className = `thinking-step type-${stepType}`;
+    step.innerHTML = `
+        <span class="step-icon">${icon}</span>
+        <div class="step-body">
+            <div class="step-label">${esc(label)}</div>
+            ${detail ? `<div class="step-detail">${esc(String(detail).substring(0, 80))}</div>` : ''}
+        </div>`;
+    steps.appendChild(step);
+    steps.scrollTop = steps.scrollHeight;
+
+    document.getElementById('mealThLabel').textContent = label;
+}
+
+function markMealThinkingDone() {
+    const spinner = document.getElementById('mealThSpinner');
+    spinner.className = 'th-check';
+    spinner.textContent = '✓';
+    document.getElementById('mealThLabel').textContent = 'Análisis completado';
+    setTimeout(() => {
+        document.getElementById('mealThinkingHeader').classList.add('collapsed');
+        document.getElementById('mealThinkingSteps').classList.add('hidden');
+    }, 800);
+}
+
+function toggleMealThinking() {
+    const header = document.getElementById('mealThinkingHeader');
+    const steps = document.getElementById('mealThinkingSteps');
+    header.classList.toggle('collapsed');
+    steps.classList.toggle('hidden');
 }
 
 function showAnalysisResult(data) {
@@ -370,12 +461,7 @@ function mealCardHTML(m) {
 /* ═══════════════════════════════════════════════════════════════ */
 
 // ── Thinking Panel helpers ───────────────────────────────────
-const STEP_ICONS = {
-    thinking:     '🧠',
-    tool_start:   '🔧',
-    tool_end:     '✅',
-    synthesizing: '✍️',
-};
+// STEP_ICONS common constant defined at the top
 
 function resetThinkingPanel() {
     document.getElementById('thinkingSteps').innerHTML = '';
