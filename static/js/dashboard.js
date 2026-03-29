@@ -15,6 +15,8 @@ const STEP_ICONS = {
 
 document.addEventListener('DOMContentLoaded', () => {
     loadProfiles();
+    fetchModels('chat');
+    fetchModels('vision');
 });
 
 /* ═══════════════════════════════════════════════════════════════ */
@@ -642,6 +644,10 @@ async function sendChat() {
     } catch (err) {
         typing.style.display = 'none';
         appendChat('assistant', '❌ Error de conexión: ' + err.message, new Date().toISOString());
+    } finally {
+        // Refresh model status in case a fallback happened (both chat and vision)
+        fetchModels('chat');
+        fetchModels('vision');
     }
 }
 
@@ -776,4 +782,72 @@ function esc(s) {
     if (!s) return '';
     const m = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
     return s.replace(/[&<>"']/g, c => m[c]);
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/*                        MODELS MANAGER                          */
+/* ═══════════════════════════════════════════════════════════════ */
+async function fetchModels(category = 'chat') {
+    try {
+        const res = await fetch(`/api/models?category=${category}`);
+        const data = await res.json();
+        if (data.success) {
+            const selectorId = category === 'chat' ? 'modelSelector' : 'visionModelSelector';
+            const indicatorId = category === 'chat' ? 'modelStatusIndicator' : 'visionModelStatusIndicator';
+            
+            const selector = document.getElementById(selectorId);
+            const indicator = document.getElementById(indicatorId);
+            
+            if (!selector || !indicator) return;
+
+            // Clear current options
+            selector.innerHTML = '';
+            
+            let activeModel = null;
+            
+            data.models.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m.id;
+                opt.textContent = m.name + (!m.available ? ' (❌ Agotado)' : '');
+                opt.disabled = !m.available;
+                if (m.active) {
+                    opt.selected = true;
+                    activeModel = m;
+                }
+                selector.appendChild(opt);
+            });
+            
+            if (activeModel) {
+                if (activeModel.available) {
+                    indicator.textContent = `✅ Usando ${activeModel.name}`;
+                    indicator.style.color = '#fff';
+                } else {
+                    indicator.textContent = `⚠️ ${activeModel.name} agotado`;
+                    indicator.style.color = '#ffccd5';
+                }
+            }
+        }
+    } catch (e) {
+        console.error(`Error fetching models for ${category}:`, e);
+    }
+}
+
+async function changeModel(category = 'chat') {
+    const selectorId = category === 'chat' ? 'modelSelector' : 'visionModelSelector';
+    const model_id = document.getElementById(selectorId).value;
+    try {
+        const res = await fetch('/api/models/select', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ category, model_id })
+        });
+        const data = await res.json();
+        if (data.success) {
+            fetchModels(category); // Refresh labels
+        } else {
+            alert('Error al cambiar modelo: ' + data.error);
+        }
+    } catch (e) {
+        console.error(`Error selecting model for ${category}:`, e);
+    }
 }

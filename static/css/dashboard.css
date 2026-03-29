@@ -940,3 +940,59 @@ body {
     color: var(--red);
     border-color: var(--red);
 }
+
+/* ═══════════════════════════════════════════════════════════════ */
+/*                        RESPONSIVE DESIGN                       */
+/* ═══════════════════════════════════════════════════════════════ */
+
+/* ── Tablet (up to 1024px) ─────────────────── */
+@media (max-width: 1024px) {
+    .container { padding: 1rem; }
+}
+
+/* ── Small Monitor/Wide Tablet (up to 850px) ── */
+@media (max-width: 850px) {
+    .macro-row {
+        grid-template-columns: 1fr 1fr;
+        gap: .8rem;
+    }
+}
+
+/* ── Standard Phone (up to 768px) ───────────── */
+@media (max-width: 768px) {
+    .topnav { padding: .6rem 1rem; }
+    .topnav .nav-links { display: none; } /* Simplified for mobile */
+    .profile-bar { padding: .6rem 1rem; flex-direction: column; align-items: stretch; gap: .6rem; }
+    .profile-bar select { min-width: 0; }
+    
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    .form-grid { grid-template-columns: 1fr; gap: .4rem; }
+    
+    .card { padding: 1.1rem; }
+    .tabs { margin-bottom: 1rem; overflow-x: auto; -webkit-overflow-scrolling: touch; padding: .3rem; flex-wrap: nowrap; justify-content: flex-start; }
+    .tab-btn { padding: 8px 14px; white-space: nowrap; flex-shrink: 0; font-size: .8rem; }
+    
+    .macro-card .value { font-size: 1.4rem; }
+    .chat-messages { height: 420px; padding: .8rem; }
+    .chat-msg { max-width: 92%; }
+    
+    .example-chip { font-size: .7rem; padding: 4px 10px; }
+}
+
+/* ── Small Phone (up to 480px) ──────────────── */
+@media (max-width: 480px) {
+    .macro-row { grid-template-columns: 1fr; }
+    .macro-card { padding: .8rem; display: flex; align-items: center; justify-content: space-between; text-align: left; border-top: 3px solid var(--primary); }
+    .macro-card .value { margin: 0; font-size: 1.25rem; }
+    .macro-card .label { order: -1; margin-bottom: 0; font-size: .65rem; }
+    .macro-card .sub { display: none; }
+    .progress-bar { display: none; }
+    
+    .macro-card.cal { border-top-color: var(--orange); }
+    .macro-card.prot { border-top-color: var(--red); }
+    .macro-card.carbs { border-top-color: var(--primary); }
+    .macro-card.fat { border-top-color: var(--yellow); }
+    
+    .chat-input-row { padding: .6rem .8rem; }
+    .chat-input-row button { padding: 9px 12px; font-size: .8rem; }
+}

@@ -40,6 +40,7 @@ class NutritionController:
         get_today_summary: Any = None,
         delete_meal: Any = None,
         chat: Any = None,
+        model_manager: Any = None,
     ):
         self.create_profile_uc = create_profile
         self.get_profiles_uc = get_profiles
@@ -50,6 +51,7 @@ class NutritionController:
         self.get_today_summary_uc = get_today_summary
         self.delete_meal_uc = delete_meal
         self.chat_uc = chat
+        self.model_manager = model_manager
 
         os.makedirs(UPLOAD_DIR, exist_ok=True)
 
@@ -283,4 +285,38 @@ class NutritionController:
         """DELETE /api/chat/<profile_id>"""
         result = self.chat_uc.clear_history(profile_id)
         return jsonify(result), 200 if result['success'] else 500
+
+    # ── Models API ──────────────────────────────────────────────────
+
+    def api_get_models(self):
+        """GET /api/models?category=chat|vision"""
+        if not self.model_manager:
+            return jsonify({'success': False, 'error': 'Model manager not initialized'}), 500
+        
+        category = request.args.get('category', 'chat')
+        models = self.model_manager.get_models_status(category)
+        return jsonify({
+            'success': True,
+            'category': category,
+            'models': models
+        })
+
+    def api_select_model(self):
+        """POST /api/models/select  {category, model_id}"""
+        if not self.model_manager:
+            return jsonify({'success': False, 'error': 'Model manager not initialized'}), 500
+            
+        data = request.get_json()
+        category = data.get('category', 'chat')
+        model_id = data.get('model_id')
+        if not model_id:
+            return jsonify({'success': False, 'error': 'model_id required'}), 400
+            
+        self.model_manager.set_active_model(category, model_id)
+        return jsonify({
+            'success': True,
+            'message': f"Active model for {category} set to {model_id}",
+            'active_model': model_id,
+            'category': category
+        })
 

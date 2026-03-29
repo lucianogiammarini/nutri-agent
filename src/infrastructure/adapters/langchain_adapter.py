@@ -14,6 +14,7 @@ from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, Tool
 from langchain_core.language_models.chat_models import BaseChatModel
 from src.domain.llm_adapter_interface import ILlmAdapter
 from src.domain.food_api_interface import IFoodAPI
+from src.infrastructure.adapters.model_manager import ModelManager
 
 logger = logging.getLogger(__name__)
 
@@ -199,9 +200,21 @@ class LangChainAdapter(ILlmAdapter):
     - RAG-powered nutritional chat (Chat Completions)
     """
 
-    def __init__(self, chat_model: BaseChatModel):
+    def __init__(self, chat_model: BaseChatModel, model_manager: Optional[ModelManager] = None, category: str = "chat"):
         self.chat_model = chat_model
+        self.model_manager = model_manager
+        self.category = category
         self._food_api = None  # injected later
+
+    def _get_model(self):
+        """Returns the active model instance from the manager (if present) for this category."""
+        if self.model_manager:
+            return self.model_manager.create_model(
+                category=self.category,
+                google_api_key=os.getenv("GOOGLE_API_KEY", ""),
+                openai_api_key=os.getenv("OPENAI_API_KEY", ""),
+            )
+        return self.chat_model
 
     def set_food_api(self, food_api: IFoodAPI):
         """Inject the food API adapter for nutrition lookups."""
@@ -417,7 +430,23 @@ class LangChainAdapter(ILlmAdapter):
 
         if on_progress:
             on_progress({"type": "thinking", "label": "Analizando imagen con visión artificial...", "detail": "Identificando platos o etiquetas"})
-        response = self.chat_model.invoke(messages)
+        
+        def run_vision_invoke(msgs):
+            current_model = self._get_model()
+            return current_model.invoke(msgs)
+
+        try:
+            response = run_vision_invoke(messages)
+        except Exception as e:
+            if self.model_manager and ("429" in str(e) or "RESOURCE_EXHAUSTED" in str(e)):
+                logger.warning(f"[analyze] Vision model ({self.category}) exhausted. Attempting fallback...")
+                # Notify manager of exhaustion for the current active model in this category
+                current_id = self.model_manager.get_active_model_id(self.category)
+                self.model_manager.mark_exhausted(self.category, current_id)
+                response = run_vision_invoke(messages)
+            else:
+                raise e
+            
         logger.info("[analyze] Phase 1 — Vision API: %.2fs", time.time() - t1)
 
         raw_vision = self._extract_text_content(response.content)
@@ -528,7 +557,11 @@ class LangChainAdapter(ILlmAdapter):
         if mcp_tools:
             all_tools.extend(mcp_tools)
 
-        llm_with_tools = self.chat_model.bind_tools(all_tools)
+        def get_bound_model():
+            current_model = self._get_model()
+            return current_model.bind_tools(all_tools)
+
+        llm_with_tools = get_bound_model()
         messages = self._build_chat_messages(
             user_message, profile_context, chat_history or []
         )
@@ -542,7 +575,18 @@ class LangChainAdapter(ILlmAdapter):
         if on_progress:
             on_progress({"type": "thinking", "label": "Analizando tu pregunta...", "detail": ""})
 
-        response_msg = llm_with_tools.invoke(messages)
+        try:
+            response_msg = llm_with_tools.invoke(messages)
+        except Exception as e:
+            if self.model_manager and ("429" in str(e) or "RESOURCE_EXHAUSTED" in str(e)):
+                logger.warning(f"[chat] Primary model ({self.category}) exhausted. Attempting fallback...")
+                current_id = self.model_manager.get_active_model_id(self.category)
+                self.model_manager.mark_exhausted(self.category, current_id)
+                # Retry once with newly active model (should be fallback now)
+                llm_with_tools = get_bound_model()
+                response_msg = llm_with_tools.invoke(messages)
+            else:
+                raise e
 
         while response_msg.tool_calls and round_count < max_rounds:
             round_count += 1
@@ -595,7 +639,19 @@ class LangChainAdapter(ILlmAdapter):
             # Re-invoke the LLM with the new messages containing the execution results
             if on_progress:
                 on_progress({"type": "synthesizing", "label": "Sintetizando respuesta...", "detail": ""})
-            response_msg = llm_with_tools.invoke(messages)
+            
+            try:
+                response_msg = llm_with_tools.invoke(messages)
+            except Exception as e:
+                # Fallback here too if it fails mid-conversation
+                if self.model_manager and ("429" in str(e) or "RESOURCE_EXHAUSTED" in str(e)):
+                    logger.warning(f"[chat] Primary model ({self.category}) exhausted mid-turn. Attempting fallback...")
+                    current_id = self.model_manager.get_active_model_id(self.category)
+                    self.model_manager.mark_exhausted(self.category, current_id)
+                    llm_with_tools = get_bound_model()
+                    response_msg = llm_with_tools.invoke(messages)
+                else:
+                    raise e
 
         logger.info(
             "[chat] ✅ Respuesta generada (%.2fs, %d rondas, tools: %s)",

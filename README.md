@@ -11,6 +11,15 @@ No es un simple contador de calorías, sino un agente impulsado por inteligencia
 - 👁️ **Visión Multimodal** - Identifica alimentos y estima porciones a partir de fotos (sin alucinaciones calóricas).
 - 🛠️ **Tool Calling** - Búsqueda automática de nutrientes vía la API de **Open Food Facts**.
 - 🔍 **RAG System (ChromaDB)** - Generación de respuestas nutricionales fundamentadas utilizando Embeddings de *Sentence-Transformers* y una base vectorial con el manual de intervenciones de las GAPA.
+- 🛡️ **Resiliencia Multi-Modelo** - Sistema inteligente de gestión de cuotas que conmuta automáticamente entre modelos de Gemini y OpenAI por caso de uso.
+
+### 🤖 Modelos de IA por Caso de Uso
+NutriAgent utiliza una arquitectura de "Failover" para garantizar disponibilidad continua:
+
+| Caso de Uso | Modelo Principal | Modelo de Respaldo |
+| :--- | :--- | :--- |
+| **Chat Nutricional** | Gemini 3.1 Pro Preview | GPT-4o Mini |
+| **Análisis de Comidas (Visión)** | Gemini 3 Flash | GPT-4o |
 
 ### ⚙️ Arquitectura de Software
 - 🏗️ **Arquitectura Hexagonal** - Separación estricta entre Adaptadores (LangChain, SQLite, Chroma) y Dominio.
@@ -48,14 +57,14 @@ No es un simple contador de calorías, sino un agente impulsado por inteligencia
    venv\Scripts\activate
    ```
 
-4. **Configurar Variables de Entorno (.env)**
-   Debes crear un archivo `.env` en la raíz del proyecto. Puedes copiar el ejemplo provisto:
+5. **Configurar Variables de Env (.env)**
    ```bash
    cp .env.example .env
    ```
-   Luego abre el archivo `.env` y completa las variables:
-   - **OPENAI_API_KEY**: Ingresa a la [Plataforma OpenAI](https://platform.openai.com/) y crea tu API Key secreta. Es obligatoria para que el Agente RAG y el modelo de Visión (gpt-4o) puedan funcionar.
-   - **USDA_API_KEY**: (Opcional) Crea tu llave gratuita en [USDA FoodData Central](https://fdc.nal.usda.gov/api-key-signup.html). Por defecto el sistema usará `DEMO_KEY`, la cual funciona perfecto para pruebas locales pero tiene un límite de 30 consultas por hora.
+   Abra el archivo `.env` y complete:
+   - **GOOGLE_API_KEY**: (Obligatoria) Tu llave de [Google AI Studio](https://aistudio.google.com/) para usar Gemini 3.1 Pro Preview y 3 Flash.
+   - **OPENAI_API_KEY**: (Opcional) Recomendada para mayor resiliencia. El sistema la usará como **Fallback** (GPT-4o / GPT-4o-mini) si Gemini agota su cuota gratuita.
+   - **USDA_API_KEY**: (Opcional) Crea tu llave en [USDA FoodData Central](https://fdc.nal.usda.gov/api-key-signup.html). Por defecto usa `DEMO_KEY`.
 
 5. **Instalar las dependencias**
    ```bash

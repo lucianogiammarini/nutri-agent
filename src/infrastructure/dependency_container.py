@@ -30,6 +30,7 @@ from src.infrastructure.adapters.langchain_adapter import LangChainAdapter
 from src.infrastructure.adapters.usda_adapter import USDAAdapter
 from src.domain.llm_adapter_interface import ILlmAdapter
 from src.domain.food_api_interface import IFoodAPI
+from src.infrastructure.adapters.model_manager import ModelManager
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
 from src.application.profile_use_cases import (
@@ -82,6 +83,13 @@ class DependencyContainer:
         self._nutrition_cache = None
         self._nutrition_controller = None
         self._mcp_sqlite = None
+        self._model_manager = None
+
+        # Start availability probe
+        self.model_manager.probe_models(
+            google_api_key=os.getenv("GOOGLE_API_KEY", ""),
+            openai_api_key=os.getenv("OPENAI_API_KEY", ""),
+        )
 
     # ── MCP Integrations ────────────────────────────────────────
 
@@ -145,25 +153,33 @@ class DependencyContainer:
     @property
     def vision_adapter(self) -> ILlmAdapter:
         if self._vision_adapter is None:
-            model = ChatGoogleGenerativeAI(
-                model="gemini-3-flash-preview",
-                temperature=0,
-                api_key=os.getenv("GOOGLE_API_KEY", ""),
+            # Always get the latest model instance based on manager state
+            model = self.model_manager.create_model(
+                category="vision",
+                google_api_key=os.getenv("GOOGLE_API_KEY", ""),
+                openai_api_key=os.getenv("OPENAI_API_KEY", ""),
             )
-            self._vision_adapter = LangChainAdapter(chat_model=model)
+            self._vision_adapter = LangChainAdapter(chat_model=model, model_manager=self.model_manager, category="vision")
             # Inject food API for direct parallel nutrition lookups
             self._vision_adapter.set_food_api(self.food_api_adapter)
         return self._vision_adapter
 
     @property
+    def model_manager(self) -> ModelManager:
+        if self._model_manager is None:
+            self._model_manager = ModelManager()
+        return self._model_manager
+
+    @property
     def chat_adapter(self) -> ILlmAdapter:
         if self._chat_adapter is None:
-            model = ChatGoogleGenerativeAI(
-                model="gemini-3.1-pro-preview",
-                temperature=0,
-                api_key=os.getenv("GOOGLE_API_KEY", ""),
+            # Always get the latest model instance based on manager state
+            model = self.model_manager.create_model(
+                category="chat",
+                google_api_key=os.getenv("GOOGLE_API_KEY", ""),
+                openai_api_key=os.getenv("OPENAI_API_KEY", ""),
             )
-            self._chat_adapter = LangChainAdapter(chat_model=model)
+            self._chat_adapter = LangChainAdapter(chat_model=model, model_manager=self.model_manager, category="chat")
         return self._chat_adapter
 
     @property
@@ -208,5 +224,6 @@ class DependencyContainer:
                     food_api_adapter=self.food_api_adapter,
                     mcp_sqlite=self.mcp_sqlite,
                 ),
+                model_manager=self.model_manager,
             )
         return self._nutrition_controller

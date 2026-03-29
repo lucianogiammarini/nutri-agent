@@ -80,3 +80,7 @@ def configure_nutrition_routes(app: Flask, ctrl: NutritionController):
     app.add_url_rule('/api/chat/stream', 'api_chat_stream', ctrl.api_chat_stream, methods=['POST'])
     app.add_url_rule('/api/chat/<int:profile_id>', 'api_chat_history', ctrl.api_chat_history, methods=['GET'])
     app.add_url_rule('/api/chat/<int:profile_id>', 'api_chat_clear', ctrl.api_chat_clear, methods=['DELETE'])
+
+    # Models API
+    app.add_url_rule('/api/models', 'api_get_models', ctrl.api_get_models, methods=['GET'])
+    app.add_url_rule('/api/models/select', 'api_select_model', ctrl.api_select_model, methods=['POST'])
