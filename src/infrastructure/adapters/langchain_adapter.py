@@ -26,11 +26,12 @@ Si es un PLATO DE COMIDA (meal):
 Devuelve ÚNICAMENTE un JSON estructurado así (sin markdown, sin extras):
 {
   "image_type": "meal",
+  "reasoning": "Breve explicación de cómo estimaste cada porción (ej: 'Presa de pollo que ocupa 1/4 del plato, aparenta ser muslo mediano...')",
   "description": "Descripción breve del plato en español",
   "food_items": [
     {
       "name": "nombre del alimento en español",
-      "name_en": "nombre traducido al INGLÉS (ej: 'raw chicken breast')",
+      "name_en": "nombre traducido al INGLÉS para búsqueda en base de datos USDA (ej: 'roasted chicken thigh'). IMPORTANTE: incluir método de cocción (roasted, boiled, fried, steamed, baked, grilled, raw).",
       "quantity": 150,
       "unit": "g"
     }
@@ -39,12 +40,15 @@ Devuelve ÚNICAMENTE un JSON estructurado así (sin markdown, sin extras):
 }
 REGLAS PARA PLATO:
 - Identifica los alimentos y estima cantidad/unidad. NO calcules calorías ni macronutrientes manualmente.
+- En "name_en" SIEMPRE incluí el método de cocción (roasted, boiled, fried, baked, steamed, grilled). Si no es evidente, asumir "cooked".
+- Sé consistente: ante la misma imagen, siempre debés devolver la misma descomposición de alimentos y porciones.
 
 Si es una TABLA NUTRICIONAL (label):
 Extrae los valores matemáticamente exactos mediante OCR. Si los valores son por porción, extrae los valores POR PORCIÓN (o regla de tres si la cantidad consumida es diferente a una porción y el usuario lo aclaró).
 Devuelve ÚNICAMENTE este JSON (sin markdown, sin extras):
 {
   "image_type": "label",
+  "reasoning": "Breve explicación de la lectura OCR",
   "description": "Tabla Nutricional de [Producto]",
   "food_items": [],
   "nutrition_facts": {
@@ -58,6 +62,7 @@ Devuelve ÚNICAMENTE este JSON (sin markdown, sin extras):
 REGLAS GENERALES:
 - Usa el comentario del usuario (si hay) para ajustar las porciones leídas o estimadas.
 - ESTRICTO: Devuelve ÚNICAMENTE JSON válido, nada antes ni después.
+- El campo "reasoning" es OBLIGATORIO.
 """
 
 CHAT_SYSTEM_PROMPT_TEMPLATE = """Eres un agente de intervención metabólica de precisión, 

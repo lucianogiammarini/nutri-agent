@@ -146,7 +146,9 @@ class DependencyContainer:
     def vision_adapter(self) -> ILlmAdapter:
         if self._vision_adapter is None:
             model = ChatGoogleGenerativeAI(
-                model="gemini-3-flash-preview", api_key=os.getenv("GOOGLE_API_KEY", "")
+                model="gemini-3-flash-preview",
+                temperature=0,
+                api_key=os.getenv("GOOGLE_API_KEY", ""),
             )
             self._vision_adapter = LangChainAdapter(chat_model=model)
             # Inject food API for direct parallel nutrition lookups
@@ -157,7 +159,9 @@ class DependencyContainer:
     def chat_adapter(self) -> ILlmAdapter:
         if self._chat_adapter is None:
             model = ChatGoogleGenerativeAI(
-                model="gemini-3.1-pro-preview", api_key=os.getenv("GOOGLE_API_KEY", "")
+                model="gemini-3.1-pro-preview",
+                temperature=0,
+                api_key=os.getenv("GOOGLE_API_KEY", ""),
             )
             self._chat_adapter = LangChainAdapter(chat_model=model)
         return self._chat_adapter

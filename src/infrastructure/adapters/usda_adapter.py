@@ -194,7 +194,10 @@ class USDAAdapter(IFoodAPI):
             logger.info("[USDA]   HTTP %d — %d productos encontrados", resp.status_code, len(foods))
 
             if foods:
-                return foods[0]
+                best = self._pick_best_product(foods, search_term)
+                logger.info("[USDA]   Producto elegido: '%s' (fdcId=%s)",
+                            best.get("description", "?"), best.get("fdcId", "?"))
+                return best
                 
         except requests.exceptions.Timeout:
             logger.warning("[USDA]   HTTP TIMEOUT para '%s'", search_term)
@@ -204,6 +207,47 @@ class USDAAdapter(IFoodAPI):
             logger.error("[USDA]   Error inesperado para '%s': %s", search_term, e)
 
         return None
+
+    def _pick_best_product(self, foods: List[Dict[str, Any]], query: str) -> Dict[str, Any]:
+        """Score USDA results to prefer cooked/prepared variants over raw ones."""
+        query_lower = query.lower()
+
+        # Cooking-method keywords that indicate cooked food
+        cooked_keywords = {"cooked", "roasted", "baked", "grilled", "fried",
+                           "steamed", "boiled", "sauteed", "braised", "stewed"}
+        raw_keywords = {"raw", "uncooked", "unprepared"}
+
+        query_wants_cooked = any(kw in query_lower for kw in cooked_keywords)
+        query_wants_raw = any(kw in query_lower for kw in raw_keywords)
+
+        best_score = -1
+        best_food = foods[0]  # fallback
+
+        for food in foods:
+            desc = (food.get("description") or "").lower()
+            score = 0
+
+            # Prefer cooked if query mentions cooking, or by default
+            if query_wants_cooked:
+                if any(kw in desc for kw in cooked_keywords):
+                    score += 3
+                if any(kw in desc for kw in raw_keywords):
+                    score -= 3
+            elif query_wants_raw:
+                if any(kw in desc for kw in raw_keywords):
+                    score += 3
+            else:
+                # Default: slightly prefer cooked
+                if any(kw in desc for kw in cooked_keywords):
+                    score += 1
+                if any(kw in desc for kw in raw_keywords):
+                    score -= 1
+
+            if score > best_score:
+                best_score = score
+                best_food = food
+
+        return best_food
 
     def _calculate_factor(self, quantity: float, unit: str) -> float:
         unit_lower = unit.lower().strip()
