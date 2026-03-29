@@ -69,6 +69,7 @@ def configure_nutrition_routes(app: Flask, ctrl: NutritionController):
     # Meals API
     app.add_url_rule('/api/meals/analyze', 'api_analyze_meal', ctrl.api_analyze_meal, methods=['POST'])
     app.add_url_rule('/api/meals/analyze/stream', 'api_analyze_meal_stream', ctrl.api_analyze_meal_stream, methods=['POST'])
+    app.add_url_rule('/api/meals/<int:meal_id>', 'api_delete_meal', ctrl.api_delete_meal, methods=['DELETE'])
     app.add_url_rule('/api/meals/<int:profile_id>', 'api_meal_history', ctrl.api_meal_history, methods=['GET'])
 
     # Dashboard API

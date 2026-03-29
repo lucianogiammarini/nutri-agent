@@ -11,6 +11,8 @@ Handles API endpoints and web views for:
 import os
 import uuid
 import json
+import threading
+from typing import Any
 from flask import request, jsonify, render_template, Response, stream_with_context
 from src.application.profile_use_cases import (
     CreateProfileUseCase, GetProfilesUseCase,
@@ -35,8 +37,9 @@ class NutritionController:
         update_profile: UpdateProfileUseCase,
         analyze_meal: AnalyzeMealUseCase,
         get_meal_history: GetMealHistoryUseCase,
-        get_today_summary: GetTodaySummaryUseCase,
-        chat: ChatUseCase,
+        get_today_summary: Any = None,
+        delete_meal: Any = None,
+        chat: Any = None,
     ):
         self.create_profile_uc = create_profile
         self.get_profiles_uc = get_profiles
@@ -45,6 +48,7 @@ class NutritionController:
         self.analyze_meal_uc = analyze_meal
         self.get_meal_history_uc = get_meal_history
         self.get_today_summary_uc = get_today_summary
+        self.delete_meal_uc = delete_meal
         self.chat_uc = chat
 
         os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -165,6 +169,7 @@ class NutritionController:
                 else:
                     q.put({'type': 'error', 'text': result.get('error', 'Analysis error')})
             except Exception as e:
+                logger.error("[AnalyzeMeal] Error: %s", e)
                 q.put({'type': 'error', 'text': str(e)})
             finally:
                 q.put(None)
@@ -185,6 +190,11 @@ class NutritionController:
         limit = request.args.get('limit', 20, type=int)
         result = self.get_meal_history_uc.execute(profile_id, limit)
         return jsonify(result), 200 if result['success'] else 500
+
+    def api_delete_meal(self, meal_id: int):
+        """DELETE /api/meals/<id>"""
+        result = self.delete_meal_uc.execute(meal_id)
+        return jsonify(result), 200 if result['success'] else 400
 
     def api_today_summary(self, profile_id: int):
         """GET /api/dashboard/<profile_id>"""

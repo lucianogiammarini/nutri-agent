@@ -430,34 +430,94 @@ async function loadHistory() {
     const data = await res.json();
     const list = document.getElementById('historyList');
     const empty = document.getElementById('historyEmpty');
+
     if (data.success && data.data.length) {
         empty.style.display = 'none';
-        list.innerHTML = data.data.map(m => mealCardHTML(m)).join('');
+
+        // Group meals by date
+        const groups = {};
+        data.data.forEach(m => {
+            const dateKey = m.created_at ? m.created_at.split('T')[0] : 'Desconocido';
+            if (!groups[dateKey]) groups[dateKey] = [];
+            groups[dateKey].push(m);
+        });
+
+        const sortedDates = Object.keys(groups).sort().reverse();
+        let html = '';
+
+        sortedDates.forEach(dateKey => {
+            html += `<div class="history-date-group">📅 ${formatDateGroup(dateKey)}</div>`;
+            html += groups[dateKey].map(m => mealCardHTML(m)).join('');
+        });
+
+        list.innerHTML = html;
     } else {
         list.innerHTML = '';
         empty.style.display = 'block';
     }
 }
 
+function formatDateGroup(dateStr) {
+    if (dateStr === 'Desconocido') return 'Sin fecha';
+    const d = new Date(dateStr + 'T12:00:00'); // Midday to avoid TZ shifts
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+
+    const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+    if (sameDay(d, today)) return 'Hoy';
+    if (sameDay(d, yesterday)) return 'Ayer';
+
+    const opts = { day: 'numeric', month: 'short' };
+    if (d.getFullYear() !== today.getFullYear()) opts.year = 'numeric';
+    return d.toLocaleDateString('es-AR', opts);
+}
+
 function mealCardHTML(m) {
     const img = m.photo_path
         ? `<img src="/${m.photo_path}" alt="meal">`
-        : '<div style="width:80px;height:80px;background:#edf2f7;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:2rem">🍽️</div>';
+        : '<div class="meal-icon-placeholder">🍽️</div>';
     const time = m.created_at ? new Date(m.created_at).toLocaleString('es-AR', { hour: '2-digit', minute: '2-digit' }) : '';
+
     return `
 <div class="meal-card">
+    <button class="meal-delete-btn" onclick="deleteMeal(${m.id})" title="Eliminar comida">🗑️</button>
     ${img}
     <div class="meal-info">
-        <h4>${esc(m.description || 'Comida')}</h4>
-        <p>🕐 ${time}</p>
+        <div style="display:flex;justify-content:space-between;align-items:start">
+            <h4 style="font-size:.95rem;margin-bottom:.2rem">${esc(m.description || 'Comida')}</h4>
+            <span style="font-size:.7rem;color:var(--muted);font-weight:600">${time}</span>
+        </div>
         <div class="meal-macros">
-            <span>🔥 ${Math.round(m.total_calories)}kcal</span>
-            <span>🥩 ${Math.round(m.total_protein)}g prot</span>
-            <span>🍞 ${Math.round(m.total_carbs)}g carbs</span>
-            <span>🧈 ${Math.round(m.total_fat)}g grasas</span>
+            <span>🔥 ${Math.round(m.total_calories)} kcal</span>
+            <span>🥩 P: ${Math.round(m.total_protein)}g</span>
+            <span>🍞 C: ${Math.round(m.total_carbs)}g</span>
+            <span>🥑 G: ${Math.round(m.total_fat)}g</span>
         </div>
     </div>
-</div>`;
+</div>
+`;
+}
+
+async function deleteMeal(mealId) {
+    if (!confirm('¿Estás seguro de que querés eliminar esta comida?')) return;
+
+    try {
+        const res = await fetch(`/api/meals/${mealId}`, { method: 'DELETE' });
+        const data = await res.json();
+
+        if (data.success) {
+            // Success: refresh both views
+            loadHistory();
+            loadDashboard();
+            showAlert('alertGlobal', '✅ Comida eliminada', 'success');
+        } else {
+            showAlert('alertGlobal', '❌ Error: ' + (data.error || data.message), 'error');
+        }
+    } catch (err) {
+        showAlert('alertGlobal', '❌ Error de conexión: ' + err.message, 'error');
+    }
 }
 
 /* ═══════════════════════════════════════════════════════════════ */

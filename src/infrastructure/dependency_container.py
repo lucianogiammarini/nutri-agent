@@ -42,6 +42,7 @@ from src.application.meal_use_cases import (
     AnalyzeMealUseCase,
     GetMealHistoryUseCase,
     GetTodaySummaryUseCase,
+    DeleteMealUseCase,
 )
 from src.application.chat_use_case import ChatUseCase
 from src.infrastructure.web.nutrition_controller import NutritionController
@@ -189,6 +190,7 @@ class DependencyContainer:
                     vision_adapter=self.vision_adapter,
                 ),
                 get_meal_history=GetMealHistoryUseCase(self.meal_repository),
+                delete_meal=DeleteMealUseCase(self.meal_repository),
                 get_today_summary=GetTodaySummaryUseCase(
                     self.meal_repository,
                     self.profile_repository,

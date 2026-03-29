@@ -870,3 +870,73 @@ body {
     .card { padding: 1.2rem; }
     .cam-btn { width: 100%; justify-content: center; }
 }
+
+/* ── Meal History Grouping ── */
+.history-date-group {
+    margin: 1.5rem 0 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.meal-card {
+    position: relative;
+    display: flex;
+    gap: 1rem;
+    background: var(--bg);
+    padding: 1rem;
+    border-radius: var(--radius);
+    margin-bottom: 0.75rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: 1px solid transparent;
+}
+
+.meal-card:hover {
+    transform: translateX(4px);
+    box-shadow: var(--shadow-sm);
+    border-color: var(--border);
+}
+
+.meal-card img,
+.meal-card .meal-icon-placeholder {
+    width: 70px;
+    height: 70px;
+    object-fit: cover;
+    border-radius: 8px;
+    flex-shrink: 0;
+}
+
+.meal-delete-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: white;
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s, background 0.2s, color 0.2s;
+    font-size: 0.8rem;
+    color: var(--muted);
+    z-index: 10;
+}
+
+.meal-card:hover .meal-delete-btn {
+    opacity: 1;
+}
+
+.meal-delete-btn:hover {
+    background: var(--red-light);
+    color: var(--red);
+    border-color: var(--red);
+}

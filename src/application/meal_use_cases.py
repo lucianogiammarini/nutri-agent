@@ -150,3 +150,19 @@ class GetTodaySummaryUseCase:
             }
         except Exception as e:
             return {"success": False, "error": str(e)}
+
+
+class DeleteMealUseCase:
+    def __init__(self, meal_repository: IMealRepository):
+        self.meal_repo = meal_repository
+
+    def execute(self, meal_id: int) -> Dict[str, Any]:
+        try:
+            deleted = self.meal_repo.delete(meal_id)
+            if deleted:
+                return {"success": True, "message": "Meal deleted successfully"}
+            else:
+                return {"success": False, "message": "Meal not found or already deleted"}
+        except Exception as e:
+            logger.error("[DeleteMealUseCase] Error deleting meal %s: %s", meal_id, e)
+            return {"success": False, "error": str(e)}
