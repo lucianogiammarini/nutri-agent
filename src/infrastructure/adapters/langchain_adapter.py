@@ -2,6 +2,7 @@
 Adapter - LangChain generic adapter for vision analysis and chat (RAG synthesis).
 """
 
+import os
 import json
 import base64
 import time
@@ -200,7 +201,12 @@ class LangChainAdapter(ILlmAdapter):
     - RAG-powered nutritional chat (Chat Completions)
     """
 
-    def __init__(self, chat_model: BaseChatModel, model_manager: Optional[ModelManager] = None, category: str = "chat"):
+    def __init__(
+        self,
+        chat_model: BaseChatModel,
+        model_manager: Optional[ModelManager] = None,
+        category: str = "chat",
+    ):
         self.chat_model = chat_model
         self.model_manager = model_manager
         self.category = category
@@ -355,7 +361,13 @@ class LangChainAdapter(ILlmAdapter):
         t3 = time.time()
         if self._food_api:
             if on_progress:
-                on_progress({"type": "thinking", "label": "Consultando base de datos nutricional USDA...", "detail": f"Analizando {len(food_items)} alimentos"})
+                on_progress(
+                    {
+                        "type": "thinking",
+                        "label": "Consultando base de datos nutricional USDA...",
+                        "detail": f"Analizando {len(food_items)} alimentos",
+                    }
+                )
             enriched_items = self._food_api.enrich_food_items_parallel(food_items)
         else:
             enriched_items = food_items
@@ -404,7 +416,13 @@ class LangChainAdapter(ILlmAdapter):
             logger.info("[analyze] Comentario del usuario: '%s'", user_comment)
 
         if on_progress:
-            on_progress({"type": "thinking", "label": "Comprimiendo y codificando imagen...", "detail": ""})
+            on_progress(
+                {
+                    "type": "thinking",
+                    "label": "Comprimiendo y codificando imagen...",
+                    "detail": "",
+                }
+            )
         b64, mime = self._encode_image(image_path)
 
         user_text = "Analiza la siguiente imagen y extrae los datos correspondientes según sea plato o etiqueta:"
@@ -429,8 +447,14 @@ class LangChainAdapter(ILlmAdapter):
         ]
 
         if on_progress:
-            on_progress({"type": "thinking", "label": "Analizando imagen con visión artificial...", "detail": "Identificando platos o etiquetas"})
-        
+            on_progress(
+                {
+                    "type": "thinking",
+                    "label": "Analizando imagen con visión artificial...",
+                    "detail": "Identificando platos o etiquetas",
+                }
+            )
+
         def run_vision_invoke(msgs):
             current_model = self._get_model()
             return current_model.invoke(msgs)
@@ -438,22 +462,32 @@ class LangChainAdapter(ILlmAdapter):
         try:
             response = run_vision_invoke(messages)
         except Exception as e:
-            if self.model_manager and ("429" in str(e) or "RESOURCE_EXHAUSTED" in str(e)):
-                logger.warning(f"[analyze] Vision model ({self.category}) exhausted. Attempting fallback...")
+            if self.model_manager and (
+                "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e)
+            ):
+                logger.warning(
+                    f"[analyze] Vision model ({self.category}) exhausted. Attempting fallback..."
+                )
                 # Notify manager of exhaustion for the current active model in this category
                 current_id = self.model_manager.get_active_model_id(self.category)
                 self.model_manager.mark_exhausted(self.category, current_id)
                 response = run_vision_invoke(messages)
             else:
                 raise e
-            
+
         logger.info("[analyze] Phase 1 — Vision API: %.2fs", time.time() - t1)
 
         raw_vision = self._extract_text_content(response.content)
         t2 = time.time()
 
         if on_progress:
-            on_progress({"type": "thinking", "label": "Extrayendo y procesando información...", "detail": ""})
+            on_progress(
+                {
+                    "type": "thinking",
+                    "label": "Extrayendo y procesando información...",
+                    "detail": "",
+                }
+            )
         vision_result = self._parse_vision_json(raw_vision)
         logger.info("[analyze] Parsing JSON de Vision: %.4fs", time.time() - t2)
 
@@ -475,7 +509,9 @@ class LangChainAdapter(ILlmAdapter):
             logger.info("[analyze] Imagen no alimentaria detectada")
             return {
                 "image_type": "not_food",
-                "description": vision_result.get("description", "No se detectó un alimento"),
+                "description": vision_result.get(
+                    "description", "No se detectó un alimento"
+                ),
                 "food_items": [],
                 "total_calories": 0,
                 "total_protein": 0,
@@ -485,10 +521,18 @@ class LangChainAdapter(ILlmAdapter):
             }
         elif image_type == "label":
             if on_progress:
-                on_progress({"type": "thinking", "label": "Extrayendo datos de la etiqueta nutricional...", "detail": "OCR completado"})
+                on_progress(
+                    {
+                        "type": "thinking",
+                        "label": "Extrayendo datos de la etiqueta nutricional...",
+                        "detail": "OCR completado",
+                    }
+                )
             result = self._handle_label_ocr(vision_result, raw_vision)
         else:
-            result = self._handle_meal_enrichment(vision_result, raw_vision, on_progress=on_progress)
+            result = self._handle_meal_enrichment(
+                vision_result, raw_vision, on_progress=on_progress
+            )
 
         logger.info(
             "[analyze] Análisis completo finalizado: %.2fs", time.time() - t_total
@@ -573,13 +617,19 @@ class LangChainAdapter(ILlmAdapter):
         logger.info("[chat] Enviando mensaje: '%s'", user_message[:80])
 
         if on_progress:
-            on_progress({"type": "thinking", "label": "Analizando tu pregunta...", "detail": ""})
+            on_progress(
+                {"type": "thinking", "label": "Analizando tu pregunta...", "detail": ""}
+            )
 
         try:
             response_msg = llm_with_tools.invoke(messages)
         except Exception as e:
-            if self.model_manager and ("429" in str(e) or "RESOURCE_EXHAUSTED" in str(e)):
-                logger.warning(f"[chat] Primary model ({self.category}) exhausted. Attempting fallback...")
+            if self.model_manager and (
+                "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e)
+            ):
+                logger.warning(
+                    f"[chat] Primary model ({self.category}) exhausted. Attempting fallback..."
+                )
                 current_id = self.model_manager.get_active_model_id(self.category)
                 self.model_manager.mark_exhausted(self.category, current_id)
                 # Retry once with newly active model (should be fallback now)
@@ -597,7 +647,13 @@ class LangChainAdapter(ILlmAdapter):
                 args = tool_call["args"]
 
                 if on_progress:
-                    on_progress({"type": "tool_start", "label": f"Consultando: {fn_name}", "detail": list(args.values())[0] if args else ""})
+                    on_progress(
+                        {
+                            "type": "tool_start",
+                            "label": f"Consultando: {fn_name}",
+                            "detail": list(args.values())[0] if args else "",
+                        }
+                    )
 
                 t_tool = time.time()
                 # 1. Try internal handlers
@@ -622,11 +678,17 @@ class LangChainAdapter(ILlmAdapter):
                     result_str = json.dumps(
                         {"error": f"Tool '{fn_name}' not available"}
                     )
-                
+
                 logger.info("[chat]   Tool '%s' → %.2fs", fn_name, time.time() - t_tool)
 
                 if on_progress:
-                    on_progress({"type": "tool_end", "label": f"Listo: {fn_name}", "detail": f"{time.time() - t_tool:.1f}s"})
+                    on_progress(
+                        {
+                            "type": "tool_end",
+                            "label": f"Listo: {fn_name}",
+                            "detail": f"{time.time() - t_tool:.1f}s",
+                        }
+                    )
 
                 tools_used.append(fn_name)
 
@@ -638,14 +700,24 @@ class LangChainAdapter(ILlmAdapter):
 
             # Re-invoke the LLM with the new messages containing the execution results
             if on_progress:
-                on_progress({"type": "synthesizing", "label": "Sintetizando respuesta...", "detail": ""})
-            
+                on_progress(
+                    {
+                        "type": "synthesizing",
+                        "label": "Sintetizando respuesta...",
+                        "detail": "",
+                    }
+                )
+
             try:
                 response_msg = llm_with_tools.invoke(messages)
             except Exception as e:
                 # Fallback here too if it fails mid-conversation
-                if self.model_manager and ("429" in str(e) or "RESOURCE_EXHAUSTED" in str(e)):
-                    logger.warning(f"[chat] Primary model ({self.category}) exhausted mid-turn. Attempting fallback...")
+                if self.model_manager and (
+                    "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e)
+                ):
+                    logger.warning(
+                        f"[chat] Primary model ({self.category}) exhausted mid-turn. Attempting fallback..."
+                    )
                     current_id = self.model_manager.get_active_model_id(self.category)
                     self.model_manager.mark_exhausted(self.category, current_id)
                     llm_with_tools = get_bound_model()

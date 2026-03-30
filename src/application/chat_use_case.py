@@ -123,127 +123,131 @@ class ChatUseCase:
         Returns a dict of tool_name -> callable for the OpenAI adapter
         to execute when the model invokes a tool.
         """
+        return {
+            "query_nutrition": self._tool_query_nutrition,
+            "search_food_guide": self._tool_search_food_guide,
+            "get_today_summary": lambda: self._tool_get_today_summary(profile_id, profile),
+            "get_meal_history": lambda limite=10: self._tool_get_meal_history(profile_id, limite),
+        }
 
-        def query_nutrition(
-            food_name_en: str, quantity: float = 100, unit: str = "g"
-        ) -> Dict:
-            """Query USDA FoodData Central for nutrition data."""
-            result = self.food_api.query_nutrition(food_name_en, quantity, unit)
-            if result:
-                return {
-                    "food": result["name"],
-                    "quantity": f"{result['quantity']}{result['unit']}",
-                    "calories": result["calories"],
-                    "protein": result["protein"],
-                    "carbs": result["carbs"],
-                    "fat": result["fat"],
-                    "fiber": result.get("fiber", 0),
-                    "sugar": result.get("sugar", 0),
-                    "source": "USDA FoodData Central",
-                }
+    # ── Tool Handlers ────────────────────────────────────────────────
+
+    def _tool_query_nutrition(
+        self, food_name_en: str, quantity: float = 100, unit: str = "g"
+    ) -> Dict:
+        """Query USDA FoodData Central for nutrition data."""
+        result = self.food_api.query_nutrition(food_name_en, quantity, unit)
+        if result:
             return {
-                "error": f"No se encontró información nutricional para '{food_name_en}' en USDA"
+                "food": result["name"],
+                "quantity": f"{result['quantity']}{result['unit']}",
+                "calories": result["calories"],
+                "protein": result["protein"],
+                "carbs": result["carbs"],
+                "fat": result["fat"],
+                "fiber": result.get("fiber", 0),
+                "sugar": result.get("sugar", 0),
+                "source": "USDA FoodData Central",
             }
+        return {
+            "error": f"No se encontró información nutricional para '{food_name_en}' en USDA"
+        }
 
-        def search_food_guide(consulta: str) -> Dict:
-            """RAG search on the GAPA vector DB."""
-            logger.info("[chat-tool] search_food_guide('%s')", consulta[:80])
-            chunks = self.vector_repo.search(consulta, top_k=4)
-            # Filter out low-relevance chunks to avoid hallucination
-            MIN_SCORE = 0.3
-            relevant = [c for c in chunks if hasattr(c, "score") and c.score and c.score >= MIN_SCORE]
-            if relevant:
-                logger.info("[chat-tool] GAPA: %d/%d fragmentos relevantes (score >= %.1f)",
-                            len(relevant), len(chunks), MIN_SCORE)
-                return {
-                    "results": len(relevant),
-                    "fragments": [
-                        {
-                            "text": c.text,
-                            "relevance": round(c.score, 3),
-                        }
-                        for c in relevant
-                    ],
-                    "source": "Guías Alimentarias para la Población Argentina (GAPA)",
-                }
-            logger.info("[chat-tool] GAPA: sin resultados relevantes para '%s' (mejor score: %.3f)",
-                        consulta[:50], chunks[0].score if chunks and chunks[0].score else 0)
+    def _tool_search_food_guide(self, consulta: str) -> Dict:
+        """RAG search on the GAPA vector DB."""
+        logger.info("[chat-tool] search_food_guide('%s')", consulta[:80])
+        chunks = self.vector_repo.search(consulta, top_k=4)
+        # Filter out low-relevance chunks to avoid hallucination
+        MIN_SCORE = 0.3
+        relevant = [
+            c for c in chunks if hasattr(c, "score") and c.score and c.score >= MIN_SCORE
+        ]
+        if relevant:
+            logger.info(
+                "[chat-tool] GAPA: %d/%d fragmentos relevantes (score >= %.1f)",
+                len(relevant),
+                len(chunks),
+                MIN_SCORE,
+            )
             return {
-                "results": 0,
-                "message": "No se encontró información relevante en las GAPA",
-            }
-
-        def get_today_summary() -> Dict:
-            """Get today's consumed macros vs goals."""
-            meals = self.meal_repo.get_today_by_profile(profile_id)
-            consumed_cal = sum(m.total_calories for m in meals)
-            consumed_prot = sum(m.total_protein for m in meals)
-            consumed_carbs = sum(m.total_carbs for m in meals)
-            consumed_fat = sum(m.total_fat for m in meals)
-
-            return {
-                "meals_logged": len(meals),
-                "consumed": {
-                    "calories": round(consumed_cal, 1),
-                    "protein": round(consumed_prot, 1),
-                    "carbs": round(consumed_carbs, 1),
-                    "fat": round(consumed_fat, 1),
-                },
-                "goals": {
-                    "calories": profile.daily_calories,
-                    "protein": profile.daily_protein,
-                    "carbs": profile.daily_carbs,
-                    "fat": profile.daily_fat,
-                },
-                "percentage": {
-                    "calories": round(consumed_cal / profile.daily_calories * 100)
-                    if profile.daily_calories
-                    else 0,
-                    "protein": round(consumed_prot / profile.daily_protein * 100)
-                    if profile.daily_protein
-                    else 0,
-                    "carbs": round(consumed_carbs / profile.daily_carbs * 100)
-                    if profile.daily_carbs
-                    else 0,
-                    "fat": round(consumed_fat / profile.daily_fat * 100)
-                    if profile.daily_fat
-                    else 0,
-                },
-                "meals": [
+                "results": len(relevant),
+                "fragments": [
                     {
-                        "description": m.description,
-                        "calories": m.total_calories,
-                        "protein": m.total_protein,
-                        "carbs": m.total_carbs,
-                        "fat": m.total_fat,
+                        "text": c.text,
+                        "relevance": round(c.score, 3),
                     }
-                    for m in meals
+                    for c in relevant
                 ],
+                "source": "Guías Alimentarias para la Población Argentina (GAPA)",
             }
+        logger.info(
+            "[chat-tool] GAPA: sin resultados relevantes para '%s' (mejor score: %.3f)",
+            consulta[:50],
+            chunks[0].score if chunks and chunks[0].score else 0,
+        )
+        return {
+            "results": 0,
+            "message": "No se encontró información relevante en las GAPA",
+        }
 
-        def get_meal_history(limite: int = 10) -> Dict:
-            """Get recent meal history."""
-            meals = self.meal_repo.get_by_profile(profile_id, limit=min(limite, 20))
-            return {
-                "total": len(meals),
-                "meals": [
-                    {
-                        "description": m.description,
-                        "calories": m.total_calories,
-                        "protein": m.total_protein,
-                        "carbs": m.total_carbs,
-                        "fat": m.total_fat,
-                        "date": m.created_at.isoformat() if m.created_at else None,
-                    }
-                    for m in meals
-                ],
-            }
+    def _tool_get_today_summary(self, profile_id: int, profile) -> Dict:
+        """Get today's consumed macros vs goals."""
+        meals = self.meal_repo.get_today_by_profile(profile_id)
+        c_cal = sum(m.total_calories for m in meals)
+        c_prot = sum(m.total_protein for m in meals)
+        c_carbs = sum(m.total_carbs for m in meals)
+        c_fat = sum(m.total_fat for m in meals)
+
+        def pct(v, g): return round(v / g * 100) if g else 0
 
         return {
-            "query_nutrition": query_nutrition,
-            "search_food_guide": search_food_guide,
-            "get_today_summary": get_today_summary,
-            "get_meal_history": get_meal_history,
+            "meals_logged": len(meals),
+            "consumed": {
+                "calories": round(c_cal, 1),
+                "protein": round(c_prot, 1),
+                "carbs": round(c_carbs, 1),
+                "fat": round(c_fat, 1),
+            },
+            "goals": {
+                "calories": profile.daily_calories,
+                "protein": profile.daily_protein,
+                "carbs": profile.daily_carbs,
+                "fat": profile.daily_fat,
+            },
+            "percentage": {
+                "calories": pct(c_cal, profile.daily_calories),
+                "protein": pct(c_prot, profile.daily_protein),
+                "carbs": pct(c_carbs, profile.daily_carbs),
+                "fat": pct(c_fat, profile.daily_fat),
+            },
+            "meals": [
+                {
+                    "description": m.description,
+                    "calories": m.total_calories,
+                    "protein": m.total_protein,
+                    "carbs": m.total_carbs,
+                    "fat": m.total_fat,
+                }
+                for m in meals
+            ],
+        }
+
+    def _tool_get_meal_history(self, profile_id: int, limite: int = 10) -> Dict:
+        """Get recent meal history."""
+        meals = self.meal_repo.get_by_profile(profile_id, limit=min(limite, 20))
+        return {
+            "total": len(meals),
+            "meals": [
+                {
+                    "description": m.description,
+                    "calories": m.total_calories,
+                    "protein": m.total_protein,
+                    "carbs": m.total_carbs,
+                    "fat": m.total_fat,
+                    "date": m.created_at.isoformat() if m.created_at else None,
+                }
+                for m in meals
+            ],
         }
 
     def get_history(self, profile_id: int) -> Dict[str, Any]:
