@@ -24,7 +24,7 @@ jobs:
             git pull origin main
             
             # Reconstruir la imagen sin cortar el servicio actual hasta que la nueva esté lista
-            docker-compose up -d --build
+            sudo docker-compose up -d --build
             
             # Borrar imágenes antiguas sin uso para liberar espacio en el disco de la VM
-            docker image prune -f
+            sudo docker image prune -f
