@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  nutriagent:
+    build: .
+    container_name: nutriagent_app
+    restart: unless-stopped
+    ports:
+      - "5005:5005"
+    env_file:
+      - .env
+    volumes:
+      # Mapeos "bind mount": enlazamos archivos locales de la VM hacia dentro del contenedor.
+      # Así los datos sobreviven entre reinicios y actualizaciones.
+      - ./database.db:/app/database.db
+      - ./chroma_db:/app/chroma_db
