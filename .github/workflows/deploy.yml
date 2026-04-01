@@ -1,0 +1,30 @@
+name: Deploy to Oracle Cloud
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: SSH Deploy to OCI
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.OCI_HOST }}
+          username: ${{ secrets.OCI_USER }}
+          key: ${{ secrets.OCI_SSH_KEY }}
+          script: |
+            # Ir a la carpeta principal del proyecto
+            cd ~/nutri-agent
+            
+            # Bajar cambios
+            git pull origin main
+            
+            # Reconstruir la imagen sin cortar el servicio actual hasta que la nueva esté lista
+            docker-compose up -d --build
+            
+            # Borrar imágenes antiguas sin uso para liberar espacio en el disco de la VM
+            docker image prune -f
