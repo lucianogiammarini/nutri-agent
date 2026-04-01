@@ -1,7 +1,7 @@
 """
 Adapter - LangChain generic adapter for vision analysis and chat (RAG synthesis).
 """
-
+import os
 import json
 import base64
 import time

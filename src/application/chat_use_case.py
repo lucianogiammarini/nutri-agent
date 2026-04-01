@@ -65,6 +65,7 @@ class ChatUseCase:
                 "muscle_gain": "Aumento de masa muscular",
             }
             profile_ctx = (
+                f"ID de Usuario (para consultas DB): {profile.id}, "
                 f"Nombre: {profile.name}, Edad: {profile.age} años, "
                 f"Peso: {profile.weight}kg, Altura: {profile.height}cm, "
                 f"IMC: {profile.bmi()}, Objetivo: {goal_labels.get(profile.goal, profile.goal)}, "
@@ -116,6 +117,7 @@ class ChatUseCase:
         except ValueError as e:
             return {"success": False, "error": str(e)}
         except Exception as e:
+            logger.exception("Chat error")
             return {"success": False, "error": map_llm_error(e, context_prefix="Chat error")}
 
     def _build_tool_handlers(self, profile_id: int, profile) -> Dict[str, Any]:
