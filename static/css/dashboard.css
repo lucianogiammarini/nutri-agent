@@ -290,29 +290,70 @@ body {
 
 /* ── Meal cards ──────────────────────────────── */
 .meal-card {
+    position: relative;
     display: flex;
     gap: 1rem;
     background: var(--bg);
     padding: 1rem;
-    border-radius: 10px;
-    margin-bottom: .6rem;
+    border-radius: var(--radius);
+    margin-bottom: 0.75rem;
     border: 1px solid var(--border);
     border-left: 3px solid var(--primary-light);
     align-items: center;
-    transition: transform .15s, box-shadow .15s;
+    transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .meal-card:hover {
-    transform: translateX(3px);
+    transform: translateX(4px);
     box-shadow: var(--shadow-sm);
+    border-color: var(--primary-light);
 }
 
-.meal-card img {
+.meal-card img,
+.meal-card .meal-icon-placeholder {
     width: 72px;
     height: 72px;
     object-fit: cover;
     border-radius: 8px;
     flex-shrink: 0;
+}
+
+.meal-card .meal-icon-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f1f5f9;
+    font-size: 1.5rem;
+}
+
+.meal-delete-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: white;
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s, background 0.2s, color 0.2s;
+    font-size: 0.8rem;
+    color: var(--muted);
+    z-index: 10;
+}
+
+.meal-card:hover .meal-delete-btn {
+    opacity: 1;
+}
+
+.meal-delete-btn:hover {
+    background: var(--red-light);
+    color: var(--red);
+    border-color: var(--red);
 }
 
 .meal-card .meal-info { flex: 1; }
@@ -944,62 +985,6 @@ body {
     gap: 0.5rem;
 }
 
-.meal-card {
-    position: relative;
-    display: flex;
-    gap: 1rem;
-    background: var(--bg);
-    padding: 1rem;
-    border-radius: var(--radius);
-    margin-bottom: 0.75rem;
-    transition: transform 0.2s, box-shadow 0.2s;
-    border: 1px solid transparent;
-}
-
-.meal-card:hover {
-    transform: translateX(4px);
-    box-shadow: var(--shadow-sm);
-    border-color: var(--border);
-}
-
-.meal-card img,
-.meal-card .meal-icon-placeholder {
-    width: 70px;
-    height: 70px;
-    object-fit: cover;
-    border-radius: 8px;
-    flex-shrink: 0;
-}
-
-.meal-delete-btn {
-    position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    background: white;
-    border: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    opacity: 0;
-    transition: opacity 0.2s, background 0.2s, color 0.2s;
-    font-size: 0.8rem;
-    color: var(--muted);
-    z-index: 10;
-}
-
-.meal-card:hover .meal-delete-btn {
-    opacity: 1;
-}
-
-.meal-delete-btn:hover {
-    background: var(--red-light);
-    color: var(--red);
-    border-color: var(--red);
-}
 
 /* ═══════════════════════════════════════════════════════════════ */
 /*                        RESPONSIVE DESIGN                       */
