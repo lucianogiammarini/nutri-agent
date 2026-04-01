@@ -16,6 +16,7 @@ jobs:
           host: ${{ secrets.OCI_HOST }}
           username: ${{ secrets.OCI_USER }}
           key: ${{ secrets.OCI_SSH_KEY }}
+          command_timeout: 60m
           script: |
             # Ir a la carpeta principal del proyecto
             cd ~/nutri-agent
