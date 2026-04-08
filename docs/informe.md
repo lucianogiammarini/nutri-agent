@@ -92,9 +92,9 @@ Analicé tres modelos destacados evaluando su viabilidad combinando estas dos co
 
 > *Nota sobre Búsqueda Interna:* Para buscar palabras dentro de mis documentos de salud, utilicé un modelo local y de uso libre (`paraphrase-multilingual-MiniLM-L12-v2`). Esto hace que las búsquedas internas para el Chatbot sean totalmente gratuitas e instantáneas.
 
-### ⚠️ Estado Actual de la Implementación
-> Aunque el presente análisis determinó a **Gemini 3.1 Pro Preview** y **Gemini 3 Flash** como los modelos ideales por costo y rendimiento, **su integración se encuentra documentada como trabajo futuro a aplicar**. La implementación actual del sistema se construyó utilizando la suite de OpenAI (**ChatGPT / GPT-4o / GPT-4o-mini**) dado que el desarrollo técnico inicial del proyecto se llevó a cabo de forma _previa_ a la realización de este análisis de mercado y posterior selección de modelos.
-> 
+### ✅ Estado Actual de la Implementación
+> Los modelos **Gemini 3.1 Pro Preview** (chat/RAG) y **Gemini 3 Flash** (visión) están **completamente integrados** como modelos primarios en la versión actual del sistema. Para garantizar resiliencia, la aplicación cuenta con un `ModelManager` que, al iniciarse, prueba automáticamente la disponibilidad de cada modelo (enviando una llamada de prueba). Si detecta límite de cuota (error 429), promueve de forma autónoma el modelo de fallback: `gpt-4o-mini` para chat y `gpt-4o` para visión, sin intervención del usuario.
+
 ---
 
 ## 4. Cálculo Estimado del Costo por Usuario
@@ -122,17 +122,47 @@ Rediseñar un proyecto "desde cero" con parámetros empíricos reales aterriza l
 
 ---
 
-## 5. Posibles Mejoras Futuras
 
-A futuro, se podrían extender las capacidades de la plataforma implementando las siguientes mejoras:
+## 6. Arquitectura Web: Flask con Arquitectura Hexagonal
 
-1. **Lectura Inteligente de Etiquetas:** Sumar un nuevo caso de uso interactivo donde el usuario simplemente pueda sacarle una foto directa a la "Tabla Nutricional" o a los envases de alimentos industrializados, y que la plataforma extraiga automáticamente los valores limpios usando un *pipeline* intensivo de validación OCR con visión artificial.
-2. **Expansión Modular de la Base de Conocimiento (RAG):** Agregar nuevos manuales avalados por el estado y documentos de salud oficiales anexos (como protocolos de *medicina deportiva funcional* vigentes o normativas unificadas pediátricas/geriátricas de la Organización Mundial de la Salud - OMS) para expandir los horizontes clínicos del *Asistente Nutricional*.
-3. **Integración con Wearables y Ecosistema Fitness:** Conectar los endpoints de la API NutriAgent con *Apple Health (HealthKit)* o *Google Fit* para monitorear silenciosamente el nivel de actividad física del usuario (kilometraje, tiempos de inactividad, entrenamientos basales) y entrelazar matemáticamente en sus alertas el gasto calórico de un día atlético cruzado a las porciones de carbohidratos servidos.
-4. **Interacción Orgánica por Voz:** Agregar inyección directa de sonido usando modelos nativos multilingües de transcripción (del calibre de *OpenAI Whisper* o equivalentes), posibilitando al usuario el registro "a ciegas" narrándole sus comidas al sistema mientras manejan el auto o cocinan, erradicando una capa vital de la "fricción de texto".
+### ¿Por qué Flask?
+Elegí **Flask** porque es el framework web Python más simple y directo, apropiado para la escala de un proyecto académico como este. No impone convenciones de carpetas ni de base de datos, lo que me permitió aplicar libremente la Arquitectura Hexagonal sin que el framework la contradijera. Además, soporta nativamente respuestas de tipo `text/event-stream` (SSE), que fue clave para mostrar el progreso del agente en tiempo real sin necesidad de WebSockets ni librerías adicionales.
+
+### ¿Por qué Arquitectura Hexagonal?
+La **Arquitectura Hexagonal** organiza la aplicación en tres capas: dominio, aplicación e infraestructura. Su beneficio más concreto fue la **intercambiabilidad de componentes sin tocar la lógica de negocio**: cuando reemplazo OpenAI por Gemini, los casos de uso no cambian porque solo hablan con la interfaz `ILlmAdapter`. Lo mismo aplica a la base de datos: migrar de SQLite a PostgreSQL implicaría modificar un único archivo de repositorio, sin afectar los casos de uso ni el dominio.
 
 ---
 
-## 6. Ejecución del Proyecto
+## 7. Mejoras Implementadas Desde la Primera Entrega
+
+Desde la primera entrega, el proyecto incorporó mejoras orientadas principalmente a la experiencia del usuario y a la confiabilidad de las respuestas de IA:
+
+- **Lectura de etiquetas nutricionales por OCR**: El sistema sumó un modo de detección automática: cuando el usuario sube una foto de un producto industrial en lugar de un plato, el agente reconoce la etiqueta nutricional y extrae sus valores directamente del texto impreso (incluyendo fibra, sodio, azúcar y tamaño de porción), en lugar de estimarlos visualmente.
+
+- **Respuestas más consistentes**: Al configurar los modelos con temperatura cero y forzar un razonamiento explícito en el prompt de visión, se eliminó la variabilidad estocástica. Analizar la misma foto dos veces ahora entrega el mismo resultado. Además, el sistema selecciona inteligentemente la variante correcta del alimento en USDA según el método de cocción detectado (e.g., "pollo a la plancha" en lugar de "pollo crudo").
+
+- **Panel de razonamiento en tiempo real**: El usuario puede observar en vivo cada paso del agente: qué herramienta está usando, qué está buscando en las guías alimentarias y cuándo comienza a redactar la respuesta. Esto reemplazó un simple spinner estático y hace el comportamiento del agente transparente.
+
+- **Mensajes de error comprensibles**: Cuando un modelo falla (cuota agotada, timeout, autenticación), el usuario ya no ve un error técnico. Un módulo centralizado traduce todas las excepciones a mensajes claros en español.
+
+- **Continuidad del servicio (contexto académico)**: Se implementó un `ModelManager` que, cuando el modelo primario (Gemini) agota su cuota, cambia automáticamente al modelo de respaldo (GPT-4o-mini o GPT-4o). Esta funcionalidad surgió de una necesidad práctica del entorno de desarrollo: la cuota gratuita de Gemini se agotaba rápidamente durante las pruebas, lo que hacía inviable continuar ejecutando el proyecto sin un fallback. En un sistema productivo con una suscripción paga, este mecanismo no sería necesario de la misma manera, aunque sí podría adaptarse como estrategia de resiliencia ante fallos de disponibilidad del proveedor.
+
+---
+
+
+## 8. Posibles Mejoras Futuras
+
+A futuro, se podrían extender las capacidades de la plataforma con las siguientes funcionalidades:
+
+1. **Reestimación del Costo por Usuario:** El análisis de costo realizado en la Sección 4 fue elaborado de forma teórica, previo a varios cambios significativos en el sistema (OCR de etiquetas, herramientas MCP, entre otros). Antes de escalar el sistema, es necesario reestimar el costo mensual real basándose en el consumo efectivo de tokens.
+2. **Evaluación de la Exactitud del Agente:** Antes de una salida a producción formal, se debe medir la exactitud del sistema para verificar que está funcionando correctamente. Para el pipeline de visión, esto implica comparar los macros estimados por el agente contra valores de referencia certificados en USDA. Para el chat RAG, implica evaluar la fidelidad de las respuestas al corpus GAPA mediante técnicas como RAGAS. El objetivo es definir y validar métricas de aceptación claras antes de exponer el sistema a usuarios reales.
+3. **Expansión de la Base de Conocimiento (RAG):** Agregar nuevos documentos de salud oficiales, como protocolos de medicina deportiva o normativas pediátricas/geriátricas de la OMS, para ampliar el alcance clínico del asistente más allá de las GAPA actuales.
+4. **Integración con Wearables y Ecosistema Fitness:** Conectar la API con *Apple Health* o *Google Fit* para incorporar el gasto calórico por actividad física al cálculo diario de macros, haciendo el seguimiento más preciso para usuarios activos.
+5. **Interacción por Voz:** Sumar transcripción de audio con modelos como *Whisper* para que el usuario pueda registrar comidas narrando lo que come, eliminando la necesidad de escribir o sacar fotos en todo momento.
+6. **Planificación de Menús Semanales:** Agregar un caso de uso donde el agente genere un plan de comidas personalizado para la semana, respetando los objetivos calóricos del perfil y las preferencias o restricciones declaradas.
+
+## 9. Ejecución del Proyecto
 
 Para ejecutar este proyecto, por favor sigue las instrucciones detalladas en el archivo `README.md`.
+
+---
